@@ -382,8 +382,10 @@ function showList(){
       }).join('') : '<div class="note">まだ保存された併せはありません</div>'}
       <button class="btn wide" onclick="closeModal();newEvent()">＋ 新しい併せを作成</button>
       <button class="btn ghost wide" onclick="closeModal();joinPrompt()">招待コードで参加する</button>
-      <details style="text-align:center"><summary>バックアップ</summary>
+      <details style="text-align:center"><summary>設定・バックアップ</summary>
         <div style="padding:10px">
+          <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">表示名：${esc(myName())||'未設定'}
+            <button class="btn ghost sm" onclick="closeModal();ensureName()" style="margin-left:6px">変更</button></div>
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
         </div></details>
@@ -1242,8 +1244,8 @@ function openShot(i){
 
       <label class="fl">メモ・キャプション（ポーズ指定など）</label>
       ${owner
-        ? `<input type="text" value="${esc(s.cap)}" oninput="ev().shots[${i}].cap=this.value;saveShots()">`
-        : `<div style="font-size:13.5px;padding:4px 2px;border-bottom:1px solid var(--line);min-height:28px">${esc(s.cap)||'<span style="color:var(--sub)">（なし）</span>'}</div>`}
+        ? `<textarea rows="3" placeholder="例：全員で円になる構図。センターは主催" oninput="ev().shots[${i}].cap=this.value;saveShots()">${esc(s.cap)}</textarea>`
+        : `<div style="font-size:13.5px;line-height:1.6;padding:4px 2px;border-bottom:1px solid var(--line);min-height:28px;white-space:pre-wrap">${esc(s.cap)||'<span style="color:var(--sub)">（なし）</span>'}</div>`}
 
       <label class="fl">コメント（撮りたい度・撮影の相談など）</label>
       <div class="cmts">
@@ -1257,11 +1259,7 @@ function openShot(i){
 
       <button class="btn wide" style="${s.done?'background:var(--sub);border-color:var(--sub)':''}" onclick="toggleShot(${i})">
         ${s.done? '未撮影に戻す' : '撮影済みにする'}</button>
-      ${owner?`<div class="row" style="margin-top:8px">
-        <button class="btn ghost sm" onclick="moveShot(${i},-1)">前へ移動</button>
-        <button class="btn ghost sm" onclick="moveShot(${i},1)">後へ移動</button>
-        <button class="btn ghost sm" onclick="delShot(${i})">削除</button>
-      </div>`:''}
+      ${owner?`<button class="btn ghost wide" onclick="delShot(${i})">この構図を削除</button>`:''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
@@ -1274,13 +1272,6 @@ function setPrio(i,p){
 function toggleShot(i){
   const s = ev().shots[i];
   s.done = !s.done;
-  saveShots(); closeModal(); renderTab();
-}
-function moveShot(i,d){
-  const a = ev().shots;
-  const j = i+d;
-  if(j<0||j>=a.length) return;
-  [a[i],a[j]]=[a[j],a[i]];
   saveShots(); closeModal(); renderTab();
 }
 function delShot(i){
@@ -1354,8 +1345,8 @@ function ensureName(cb){
   <div class="modal">
     <div class="box">
       <h3>お名前を教えてください</h3>
-      <div class="note" style="margin:0 0 8px">コメントや申請に表示される名前です（コスネーム推奨・あとで変更できます）</div>
-      <input type="text" id="nameInput" placeholder="例：もうふ" onkeydown="if(event.key==='Enter')saveNameInput()">
+      <div class="note" style="margin:0 0 8px">構図のコメントや申請に表示される名前です（コスネーム推奨）。入力は最初の1回だけで、以降は自動で紐づきます。変更は「保存された併せを開く」内から。</div>
+      <input type="text" id="nameInput" value="${esc(myName())}" placeholder="例：もうふ" onkeydown="if(event.key==='Enter')saveNameInput()">
       <button class="btn wide" onclick="saveNameInput()">決定</button>
       <button class="btn sec wide" onclick="closeModal();nameCb=null">キャンセル</button>
     </div>
@@ -1643,6 +1634,8 @@ function joinByCode(code){
   }
   openEvent(e.id,'info');
   toast('接続中…');
+  /* 招待された時点で表示名を紐づけ（初回のみ・以降のコメント/申請に自動で使われる） */
+  if(!myName()) ensureName();
 }
 
 /* ---- バックアップ ---- */
