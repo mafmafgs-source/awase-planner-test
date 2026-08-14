@@ -439,9 +439,11 @@ function renderTabs(){
     document.body.style.paddingBottom = '30px';
     return;
   }
-  const tabs = [
-    ['info', isOwner(ev())?'要項':'併せ'],['prog','進捗'],['shots','構図']
-  ];
+  /* 招待者に要項タブはない。'info'のままなら併せタブへ寄せる */
+  if(curTab==='info' && !isOwner(ev())) curTab='awase';
+  const tabs = isOwner(ev())
+    ? [['info','要項'],['awase','併せ'],['prog','進捗'],['shots','構図']]
+    : [['awase','併せ'],['prog','進捗'],['shots','構図']];
   bar.innerHTML = tabs.map(([k,l])=>
     `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}</button>`).join('');
 }
@@ -449,8 +451,10 @@ function renderTab(){
   const e = ev();
   if(!e){ openStart(); return; }
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
+  if(!isOwner(e) && curTab==='info') curTab='awase';
   if(LITE){ (isOwner(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
-  if(curTab==='info') (isOwner(e)? renderInfo() : renderAwase());
+  if(curTab==='info') renderInfo();
+  else if(curTab==='awase') renderAwase();
   else if(curTab==='prog') renderProg();
   else if(curTab==='shots') renderShots();
   refreshFilled();
@@ -489,15 +493,18 @@ function renderAwase(){
     tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
   if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
 
+  const owner = isOwner(e);
   v.innerHTML = `
   <div class="doc">
     <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
     ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
     ${out}
-    ${!hasContent(e)?`<div class="note" style="margin-top:14px">主催の端末と同期されると、ここに確定情報が表示されます。</div>`:''}
-    <div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>
+    ${!hasContent(e) && !owner?`<div class="note" style="margin-top:14px">主催の端末と同期されると、ここに確定情報が表示されます。</div>`:''}
+    ${owner
+      ? `<div class="note" style="margin-top:18px">招待者には、この併せページがこのまま表示されます（要項タブの入力・項目ON/OFFが自動で反映されます）。</div>`
+      : `<div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>`}
   </div>
-  <button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`;
+  ${owner? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}`;
 }
 
 /* ---- 入力済みの可視化 ---- */
