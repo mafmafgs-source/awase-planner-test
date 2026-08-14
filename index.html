@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>併せPlanner</title>
+<style>
+:root{
+  --ac:#1a1a1a; --acbg:#f2f2f2;
+  --bg:#fafafa; --card:#ffffff; --tx:#1a1a1a; --sub:#767676;
+  --line:#e3e3e3; --ok:#1a1a1a; --mid:#767676; --no:#d9d9d9;
+  --r:8px; --sh:0 1px 3px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+  background:var(--bg); color:var(--tx); font-size:15px; line-height:1.6;
+  max-width:640px; margin:0 auto; padding-bottom:90px;
+}
+#topStick{position:sticky; top:0; z-index:50;}
+.savedbar{
+  background:var(--tx); color:#fff; font-size:12.5px; font-weight:700;
+  padding:9px 16px; display:flex; align-items:center; gap:10px;
+}
+.savedbar .open{flex:1; cursor:pointer;}
+.savedbar button{
+  background:none; border:1px solid rgba(255,255,255,.5); color:#fff; border-radius:5px;
+  padding:3px 10px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit;
+}
+header{
+  background:var(--card);
+  border-bottom:1px solid var(--line); padding:12px 16px;
+  display:flex; align-items:center; gap:10px;
+}
+header h1{font-size:16px; font-weight:700; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.hbtn{
+  background:none; border:none; font-size:20px; cursor:pointer; color:var(--tx);
+  padding:2px 6px; line-height:1; font-weight:700;
+}
+.hbtn.txt{font-size:13px; border:1px solid var(--tx); border-radius:6px; padding:5px 12px;}
+main{padding:16px;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
+.card h3{font-size:13.5px; color:var(--tx); margin-bottom:10px; letter-spacing:.02em;}
+.card h3 .cnt{color:var(--sub); font-weight:400; font-size:12px; margin-left:6px;}
+label.fl{display:block; font-size:12px; color:var(--sub); margin:10px 0 4px; font-weight:600;}
+input[type=text],input[type=number],input[type=datetime-local],input[type=date],input[type=time],textarea,select{
+  width:100%; border:1px solid var(--line); border-radius:6px; padding:9px 12px;
+  font-size:15px; background:var(--card); color:var(--tx); font-family:inherit;
+}
+input:focus,textarea:focus,select:focus{outline:none; border-color:var(--tx);}
+textarea{resize:vertical;}
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  background:var(--tx); color:#fff; border:1px solid var(--tx); border-radius:6px;
+  padding:11px 18px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+}
+.btn.sec{background:var(--acbg); color:var(--tx); border-color:var(--acbg);}
+.btn.ghost{background:none; border:1px solid var(--line); color:var(--sub);}
+.btn.sm{padding:6px 12px; font-size:12.5px;}
+.btn.wide{width:100%; margin-top:10px;}
+.btn:active{opacity:.7;}
+.row{display:flex; gap:8px; align-items:center;}
+.row>*{flex:1;}
+.row>.fix{flex:0 0 auto;}
+.del{
+  flex:0 0 auto; background:none; border:none; color:#b5b5b5; font-size:17px;
+  cursor:pointer; padding:4px;
+}
+.tabs{
+  position:fixed; bottom:0; left:0; right:0; max-width:640px; margin:0 auto;
+  background:var(--card); border-top:1px solid var(--line); display:flex; z-index:50;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tabs button{
+  flex:1; background:none; border:none; padding:14px 0 12px; cursor:pointer;
+  font-size:13px; color:var(--sub); font-family:inherit; font-weight:600;
+  border-top:2px solid transparent;
+}
+.tabs button.on{color:var(--tx); border-top-color:var(--tx); font-weight:700;}
+/* home */
+.evcard{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  margin-bottom:12px; cursor:pointer; overflow:hidden;
+}
+.evcard .inner{padding:14px 16px;}
+.evcard .ttl{font-weight:700; font-size:16px;}
+.evcard .meta{font-size:12.5px; color:var(--sub); margin-top:3px;}
+.evcard .cdown{
+  margin-top:8px; font-size:12px; font-weight:700; color:var(--tx);
+  background:var(--acbg); display:inline-block; padding:3px 10px; border-radius:4px;
+}
+.evcard .mini{font-size:11.5px; color:var(--sub); margin-top:6px; display:flex; gap:14px;}
+.empty{text-align:center; color:var(--sub); padding:60px 20px 40px; font-size:14px;}
+/* chips / progress */
+.pbar{height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin:6px 0;}
+.pbar>div{height:100%; background:var(--tx); border-radius:3px; transition:width .3s;}
+.st3{display:flex; gap:6px; margin-top:4px;}
+.st3 button{
+  flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
+  border-radius:6px; padding:8px 2px; font-size:12px; cursor:pointer; font-family:inherit; font-weight:600;
+}
+.st3 button.s1{border-color:var(--sub); color:var(--tx);}
+.st3 button.s2{background:var(--tx); border-color:var(--tx); color:#fff;}
+.mcard{border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px; background:var(--card);}
+.mcard .nm{font-weight:700; font-size:14.5px;}
+.mcard .tw{color:var(--sub); font-size:12px; font-weight:400;}
+.plabel{font-size:11.5px; color:var(--sub); margin-top:10px; font-weight:600;}
+/* countdown */
+.cdbig{
+  text-align:center; padding:22px 10px 18px;
+  background:var(--card); border:1px solid var(--tx);
+  border-radius:var(--r); margin-bottom:14px;
+}
+.cdbig .lbl{font-size:12px; color:var(--sub); font-weight:700; letter-spacing:.15em;}
+.cdbig .num{font-size:40px; font-weight:800; line-height:1.25;}
+.cdbig .sub{font-size:12.5px; color:var(--sub); margin-top:2px;}
+/* shots */
+.shotgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+.shot{
+  position:relative; border-radius:6px; overflow:hidden; background:var(--line);
+  aspect-ratio:3/4; cursor:pointer; border:1px solid var(--line);
+}
+.shot img{width:100%; height:100%; object-fit:cover; display:block; transition:filter .25s,opacity .25s;}
+.shot.done img{filter:grayscale(1) brightness(.65); opacity:.7;}
+.shot .ck{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+}
+.shot .ck span{
+  color:#fff; border:2px solid #fff; padding:2px 10px; font-size:15px; font-weight:800; border-radius:4px;
+}
+.shot.done .ck{display:flex;}
+.shot .num{
+  position:absolute; top:5px; left:5px; background:rgba(0,0,0,.6); color:#fff;
+  font-size:11px; font-weight:700; padding:1px 7px; border-radius:3px;
+}
+.shot .cap{
+  position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,.65));
+  color:#fff; font-size:10.5px; padding:14px 6px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.shot .prio{
+  position:absolute; top:5px; right:5px; font-size:10px; font-weight:800;
+  padding:1px 6px; border-radius:3px; letter-spacing:.03em;
+}
+.shot .prio.p1{background:rgba(255,255,255,.92); color:var(--tx); border:1px solid var(--tx);}
+.shot .prio.p2{background:rgba(0,0,0,.8); color:#fff; border:1px solid #fff;}
+.shot .cc{
+  position:absolute; bottom:5px; right:5px; background:rgba(0,0,0,.6); color:#fff;
+  font-size:9.5px; font-weight:700; padding:1px 6px; border-radius:3px;
+}
+.shot .cap{padding-right:56px;}
+/* 追加申請 */
+.pend{
+  border:1px dashed var(--sub); border-radius:var(--r); padding:10px; margin-bottom:10px;
+  display:flex; gap:10px; background:var(--card); cursor:pointer; align-items:center;
+}
+.pend img{flex:0 0 56px; width:56px; height:74px; object-fit:cover; border-radius:4px; background:var(--line);}
+.pend .pbody{flex:1; min-width:0;}
+.pend .who{font-size:12.5px; font-weight:700;}
+.pend .when{color:var(--sub); font-size:10.5px; font-weight:400; margin-left:6px;}
+.pend .cap2{font-size:12.5px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;}
+.pend .st{font-size:11px; font-weight:700; margin-top:4px;}
+/* コメント */
+.cmts{max-height:180px; overflow-y:auto;}
+.cmt{padding:7px 2px; border-bottom:1px dashed var(--line); font-size:13px; line-height:1.55;}
+.cmt .who{font-weight:700; font-size:12px;}
+.cmt .when{color:var(--sub); font-size:10.5px; margin-left:6px;}
+.opt2{font-size:11px; color:var(--sub); font-weight:400; margin-left:8px;}
+.filterrow{display:flex; gap:6px; margin-bottom:12px;}
+.filterrow button{
+  flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
+  border-radius:6px; padding:7px 0; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit;
+}
+.filterrow button.on{background:var(--tx); border-color:var(--tx); color:#fff;}
+/* modal */
+.modal{
+  position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.modal .box{
+  background:var(--card); border-radius:10px; padding:18px; width:100%; max-width:480px;
+  max-height:86vh; overflow-y:auto;
+}
+.modal .box h3{font-size:15px; margin-bottom:10px;}
+.modal img.prev{width:100%; border-radius:6px; margin-bottom:10px;}
+.note{font-size:12px; color:var(--sub); margin-top:8px; line-height:1.55;}
+details{margin-top:10px; font-size:13px;}
+details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.5px;}
+.ttrow{display:flex; gap:8px; margin-bottom:8px; align-items:center;}
+.ttrow input.t{flex:0 0 92px;}
+.hidden{display:none!important;}
+.secttl{font-size:13px; font-weight:700; color:var(--sub); margin:18px 0 8px;}
+/* document-style form */
+.doc{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:22px 18px 18px;}
+.doc .bigtitle{
+  width:100%; border:none; border-bottom:2px solid var(--tx); border-radius:0;
+  font-size:22px; font-weight:800; padding:4px 2px 8px; background:none; color:var(--tx);
+}
+.doc .bigtitle::placeholder{color:var(--no); font-weight:700;}
+.doc .intro{
+  border:none; border-radius:0; padding:8px 2px; font-size:14.5px; color:var(--tx);
+  background:none; width:100%; margin-top:6px;
+}
+.sech{font-size:15px; font-weight:800; margin:22px 0 6px; display:flex; align-items:center; gap:8px;}
+.sech .opt{font-size:11px; color:var(--sub); font-weight:600;}
+.sech.soff{color:var(--no);}
+.tgl{
+  margin-left:auto; font-size:10.5px; font-weight:800; padding:3px 12px; border-radius:99px;
+  border:1px solid var(--line); background:var(--card); color:var(--sub); cursor:pointer; font-family:inherit;
+  flex:0 0 auto; letter-spacing:.05em;
+}
+.tgl.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+details.preset{margin:6px 0 2px;}
+details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; cursor:pointer;}
+.pchip{
+  display:block; width:100%; text-align:left; font-size:12.5px; line-height:1.5;
+  padding:8px 12px; border:1px solid var(--line); border-radius:6px; margin:5px 0;
+  background:var(--card); color:var(--tx); cursor:pointer; font-family:inherit;
+}
+.pchip.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+.pchip:active{opacity:.7;}
+.pchip.all{text-align:center; font-weight:800; border-style:dashed;}
+.doc input[type=text],.doc input[type=datetime-local],.doc input[type=time],.doc textarea{
+  border:none; border-bottom:1px solid var(--line); border-radius:0; padding:7px 2px; background:none;
+}
+.doc input:focus,.doc textarea:focus{border-color:var(--tx);}
+.doc .row{align-items:flex-end;}
+.starh{font-size:13.5px; font-weight:700; color:var(--sub); margin:12px 0 2px;}
+/* 入力済みの欄は色付きで表示 */
+.doc input.filled, .doc textarea.filled{
+  border-bottom-color:#2e6fb0; color:#1c4d80;
+  background:#f3f8fd; border-radius:6px 6px 0 0;
+}
+.dtlcv{width:100%; max-width:400px; border:1px solid var(--line); border-radius:6px; margin:10px auto 4px; display:block;}
+</style>
+</head>
+<body>
+<div id="topStick">
+  <div class="savedbar hidden" id="savedBar">
+    <span class="open" id="savedBarLabel" onclick="showList()">保存された併せを開く ▾</span>
+    <button onclick="newEvent()">＋ 新規</button>
+  </div>
+  <header>
+    <h1 id="hTitle">併せPlanner</h1>
+    <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
+  </header>
+</div>
+<main id="view"></main>
+<nav class="tabs" id="tabbar"></nav>
+<div id="modalHost"></div>
+<script>
+/* ============ 併せPlanner core ============ */
+'use strict';
+
+/* フィードバック版：進捗・構図タブを一時的に非表示（falseで復活） */
+const LITE = false;
+
+/* ---- state & persistence ---- */
+let state = { events: [] };
+let cur = null;
+let curTab = 'info';
+let shotFilter = 'all';
+
+const store = {
+  get(){ try{ return JSON.parse(localStorage.getItem('awasePlanner')); }catch(e){ return null; } },
+  set(v){ try{ localStorage.setItem('awasePlanner', JSON.stringify(v)); }catch(e){ /* storage unavailable */ } }
+};
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+/* ---- 役割と表示名 ----
+   この端末で作成した併せ = 主催。招待リンクから参加した併せ = 招待者。
+   判定は localStorage 側に持ち、同期で上書きされない。 */
+const own = {
+  get(){ try{ return JSON.parse(localStorage.getItem('awaseOwned'))||{}; }catch(e){ return {}; } },
+  set(v){ try{ localStorage.setItem('awaseOwned', JSON.stringify(v)); }catch(e){} },
+  mark(id){ const o=own.get(); o[id]=true; own.set(o); }
+};
+function isOwner(e){ return !!e && !!own.get()[e.id]; }
+function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
+function setMyName(n){ try{ localStorage.setItem('awaseName', n); }catch(e){} }
+function clientId(){
+  try{
+    let c = localStorage.getItem('awaseClient');
+    if(!c){ c = uid(); localStorage.setItem('awaseClient', c); }
+    return c;
+  }catch(e){ return 'anon'; }
+}
+function roomId(){
+  const words=['sakura','yuki','hoshi','tsuki','hana','sora','umi','kaze','yume','hikari'];
+  return words[Math.floor(Math.random()*words.length)] + '-' + Math.random().toString(36).slice(2,7);
+}
+function ev(){ return state.events.find(e=>e.id===cur); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function blankEvent(){
+  return {
+    id: uid(), updatedAt: Date.now(),
+    title:'', intro:'', content:'',
+    host:'', hostTw:'',
+    dateType:'tbd', date:'', dateText:'', endTime:'',
+    place:'', studio:'', placeUrl:'', station:'', costume:'',
+    feeLayer:'', feeCamera:'',
+    hashtag:'',
+    condCommon:'', condLayer:'', condCamera:'', notes:'',
+    recruits:[{chara:'', num:1}],
+    members:[], cameras:[], assistants:[],
+    shots:[], pending:[], comments:{}, timetable:[],
+    sec:{},
+    sync:{room: roomId()}
+  };
+}
+function hasContent(e){
+  return !!(e.title || e.intro || e.date || e.dateText || e.members.length || e.shots.length || e.place || e.studio);
+}
+
+function save(pushRemote=true){
+  const e = ev();
+  if(e) e.updatedAt = Date.now();
+  store.set(state);
+  updateSavedBar();
+  if(pushRemote && e) schedulePush(e);
+}
+
+/* ---- date utils ---- */
+function fmtDate(d){
+  if(!d) return '未定';
+  const dt = new Date(d);
+  if(isNaN(dt)) return '未定';
+  const w = ['日','月','火','水','木','金','土'][dt.getDay()];
+  const hm = ('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
+  return `${dt.getFullYear()}年${dt.getMonth()+1}月${dt.getDate()}日（${w}）${hm}〜`;
+}
+function isFixed(e){ return e.dateType==='fixed' && !!e.date; }
+function dateDisp(e){
+  if(isFixed(e)) return fmtDate(e.date) + (e.endTime? e.endTime : '');
+  return (e.dateText && e.dateText.trim()) || '日程未定';
+}
+function cdText(d){
+  if(!d) return '';
+  const diff = new Date(d) - Date.now();
+  if(isNaN(diff)) return '';
+  if(diff <= 0){
+    return (diff > -86400000*1.5) ? '本日撮影日' : '撮影終了';
+  }
+  const day = Math.floor(diff/86400000);
+  const h = Math.floor(diff%86400000/3600000);
+  const m = Math.floor(diff%3600000/60000);
+  return day>0 ? `あと ${day}日 ${h}時間` : `あと ${h}時間 ${m}分`;
+}
+
+/* ---- 上部固定バー & 併せ一覧 ---- */
+function updateSavedBar(){
+  const saved = state.events.filter(hasContent);
+  const bar = document.getElementById('savedBar');
+  const lbl = document.getElementById('savedBarLabel');
+  if(saved.length){
+    bar.classList.remove('hidden');
+    lbl.textContent = `保存された併せ（${saved.length}件）を開く ▾`;
+  }else{
+    bar.classList.add('hidden');
+  }
+}
+function showList(){
+  const saved = state.events.filter(hasContent);
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()" style="align-items:flex-start;padding-top:54px">
+    <div class="box">
+      <h3>保存された併せ</h3>
+      ${saved.length? saved.map(e=>{
+        return `<div class="evcard" onclick="closeModal();openEvent('${e.id}')" style="${e.id===cur?'border-color:var(--tx)':''}">
+          <div class="inner">
+            <div class="ttl">${esc(e.title)||'（無題の併せ）'}${e.id===cur?'<span style="font-size:11px;color:var(--sub);font-weight:400">　表示中</span>':''}</div>
+            <div class="meta">${esc(e.content)||''}${e.content?' ｜ ':''}${esc(dateDisp(e))}</div>
+            ${isFixed(e)?`<div class="cdown" data-cd="${e.date}">${cdText(e.date)}</div>`:''}
+            <div class="mini">
+              <span>メンバー ${e.members.length}名</span>
+              <span>構図 ${e.shots.filter(s=>s.done).length}/${e.shots.length}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('') : '<div class="note">まだ保存された併せはありません</div>'}
+      <button class="btn wide" onclick="closeModal();newEvent()">＋ 新しい併せを作成</button>
+      <button class="btn ghost wide" onclick="closeModal();joinPrompt()">招待コードで参加する</button>
+      <details style="text-align:center"><summary>バックアップ</summary>
+        <div style="padding:10px">
+          <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
+          <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
+        </div></details>
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+
+/* ---- router ---- */
+function openEvent(id, tab='info'){
+  cur = id; curTab = tab;
+  renderTabs();
+  renderTab();
+  updateSavedBar();
+  window.scrollTo(0,0);
+  connectEvent(ev());
+}
+function openStart(){
+  if(!state.events.length){
+    const e = blankEvent();
+    own.mark(e.id);
+    state.events.push(e);
+    store.set(state);
+  }
+  openEvent(pickStartEvent().id, 'info');
+}
+function pickStartEvent(){
+  const now = Date.now();
+  const future = state.events
+    .filter(e=>isFixed(e) && new Date(e.date) > now - 86400000)
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(future.length) return future[0];
+  return [...state.events].sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))[0];
+}
+function switchTab(t){
+  curTab = t;
+  renderTabs();
+  renderTab();
+  window.scrollTo(0,0);
+}
+function renderTabs(){
+  const bar = document.getElementById('tabbar');
+  if(LITE){
+    bar.classList.add('hidden');
+    document.body.style.paddingBottom = '30px';
+    return;
+  }
+  const tabs = [
+    ['info','要項'],['prog','進捗'],['shots','構図']
+  ];
+  bar.innerHTML = tabs.map(([k,l])=>
+    `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}</button>`).join('');
+}
+function renderTab(){
+  const e = ev();
+  if(!e){ openStart(); return; }
+  document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
+  if(LITE){ renderInfo(); refreshFilled(); return; }
+  if(curTab==='info') renderInfo();
+  else if(curTab==='prog') renderProg();
+  else if(curTab==='shots') renderShots();
+  refreshFilled();
+}
+
+/* ---- 入力済みの可視化 ---- */
+function markFilled(el){
+  el.classList.toggle('filled', !!(el.value && el.value.trim()));
+}
+function refreshFilled(){
+  document.querySelectorAll('.doc input, .doc textarea').forEach(el=>{
+    if(el.type==='number') return;
+    markFilled(el);
+  });
+}
+document.addEventListener('input', ev0=>{
+  const t = ev0.target;
+  if(t && (t.tagName==='TEXTAREA' || (t.tagName==='INPUT' && t.type!=='number')) && t.closest('.doc')) markFilled(t);
+});
+
+function newEvent(){
+  const e = blankEvent();
+  own.mark(e.id);
+  state.events.push(e);
+  save(false);
+  openEvent(e.id,'info');
+}
+function deleteEvent(){
+  if(!confirm('この併せを削除しますか？（元に戻せません）')) return;
+  disconnectEvent(cur);
+  state.events = state.events.filter(x=>x.id!==cur);
+  store.set(state);
+  cur = null;
+  openStart();
+}
+
+/* ---- よく使われる文言（X実データの頻出文言集計より） ---- */
+const PRESETS = {
+  intro:{mode:'line', items:[
+    '交流メインのかなりゆるい併せです！',
+    '撮影メインでしっかり撮る併せです！',
+    'ご質問だけでもお気軽にどうぞ！たくさんのご応募お待ちしております'
+  ]},
+  place:{mode:'set', items:[
+    '都内スタジオで検討中',
+    'スタジオ未定（決まり次第お知らせします）',
+    '詳細は参加者の方にDMでお伝えします'
+  ]},
+  costume:{mode:'set', items:[
+    '通常衣装',
+    '制服',
+    '自由（キャラに合わせてご用意ください）'
+  ]},
+  feeLayer:{mode:'set', items:[
+    'スタジオ代÷人数',
+    'スタジオ代÷人数（目安3,000円前後）',
+    'スタジオ代3,000円以下を予定'
+  ]},
+  feeCamera:{mode:'set', items:[
+    'スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください',
+    'カメラマン・アシスタントの方からは頂戴いたしません',
+    'スタジオ代÷人数（カメラマン様含む）'
+  ]},
+  condCommon:{mode:'line', items:[
+    '冠婚葬祭や体調不良等、やむを得ない事情以外でキャンセルしない方',
+    'DMやオープンチャット等で連絡が取れ、音信不通にならない方',
+    'SNSへの写真・動画掲載が可能な方（顔出しNGの方は事前にご相談ください）',
+    '金銭的に自立されている方（交通費・飲食費を自己負担できる方）',
+    '作品が好きな方（履修状況は問いません）',
+    '成人済みの方',
+    '義務教育終了済の方',
+    '更衣の関係上、女性限定',
+    '相互、参加者のFFさんまで',
+    'FF外の方もOK（相互優先）',
+    '参加メンバーと仲良くできる方・コミュニケーションが取れる方',
+    'スタジオの規約やマナー・モラルを守れる方',
+    '報連相ができる方',
+    '心身ともに健康な状態で参加できる方'
+  ]},
+  condLayer:{mode:'line', items:[
+    '衣装、ウィッグをご自身でご用意できる方',
+    '着ただけ・被っただけにならない方（カラコン不問）',
+    'キャラクターに似せる努力ができる方（重加工でも可）'
+  ]},
+  condCamera:{mode:'line', items:[
+    '撮影データを1ヶ月以内に送っていただける方',
+    '撮影データを2週間以内に送っていただける方',
+    '一眼レフ・ミラーレス（＋ストロボ）を扱える方',
+    '被写体側のある程度の加工・SNS掲載にご理解のある方',
+    '交流やオフショット撮影も楽しんでいただける方'
+  ]},
+  notes:{mode:'line', items:[
+    '開催1ヶ月を切ってからの辞退は参加費を頂戴するか、代わりの方をお探しいただきます',
+    '衣装・機材の貸し借りによるトラブル、破損・盗難について主催は責任を負いかねます',
+    '貴重品は自己管理でお願いします',
+    'その他経費は随時ご連絡します',
+    '応募はDMまたはリプライにて「コスネーム・希望キャラ」をお送りください',
+    '※先着順ではございません。メンバーと相談のうえ決定します'
+  ]}
+};
+function hasLine(v,t){ return String(v||'').split('\n').map(s=>s.trim()).includes(t); }
+const openPresets = new Set();
+function presetHTML(e,k){
+  const p = PRESETS[k];
+  if(!p) return '';
+  const allIn = p.mode==='line' && p.items.every(t=>hasLine(e[k],t));
+  return `<details class="preset" ${openPresets.has(k)?'open':''} ontoggle="this.open?openPresets.add('${k}'):openPresets.delete('${k}')"><summary>よく使われる文言から選ぶ</summary><div>
+  ${p.mode==='line'?`<button class="pchip all ${allIn?'on':''}" onclick="applyPresetAll('${k}')">${allIn?'✓ すべて解除':'すべて選択'}</button>`:''}
+  ${p.items.map((t,i)=>{
+    const act = p.mode==='line' ? hasLine(e[k],t) : e[k]===t;
+    return `<button class="pchip ${act?'on':''}" onclick="applyPreset('${k}',${i})">${act?'✓ ':''}${esc(t)}</button>`;
+  }).join('')}</div></details>`;
+}
+function applyPresetAll(k){
+  const e = ev();
+  const p = PRESETS[k];
+  const allIn = p.items.every(t=>hasLine(e[k],t));
+  let ls = String(e[k]||'').split('\n').filter(s=>s.trim());
+  if(allIn){
+    ls = ls.filter(s=>!p.items.includes(s.trim()));
+  }else{
+    p.items.forEach(t=>{ if(!ls.map(s=>s.trim()).includes(t)) ls.push(t); });
+  }
+  e[k] = ls.join('\n');
+  save();
+  renderTab();
+}
+function applyPreset(k,i){
+  const e = ev();
+  const p = PRESETS[k];
+  const t = p.items[i];
+  if(p.mode==='set'){
+    e[k] = (e[k]===t) ? '' : t;
+  }else{
+    let ls = String(e[k]||'').split('\n').filter(s=>s.trim());
+    if(ls.map(s=>s.trim()).includes(t)) ls = ls.filter(s=>s.trim()!==t);
+    else ls.push(t);
+    e[k] = ls.join('\n');
+  }
+  save();
+  renderTab();
+}
+
+/* ---- 項目のON/OFF ---- */
+function secOn(e,k){ return !e.sec || e.sec[k]!==false; }
+function toggleSec(k){
+  const e = ev();
+  if(!e.sec) e.sec = {};
+  e.sec[k] = !secOn(e,k);
+  save();
+  renderTab();
+}
+function sechHTML(e,k,label,opt=''){
+  const on = secOn(e,k);
+  return `<div class="sech ${on?'':'soff'}">${label}${opt?`<span class="opt">${opt}</span>`:''}<button class="tgl ${on?'on':''}" onclick="toggleSec('${k}')">${on?'ON':'OFF'}</button></div>`;
+}
+
+/* ---- info tab (募集要項スタイル) ---- */
+function renderInfo(){
+  const e = ev();
+  const v = document.getElementById('view');
+  const fixed = e.dateType==='fixed';
+  const S = k => secOn(e,k);
+  v.innerHTML = `
+  <div class="doc">
+    <input class="bigtitle" value="${esc(e.title)}" placeholder="併せタイトル" oninput="uf('title',this.value)">
+    <textarea class="intro" rows="2" placeholder="ひとこと紹介（例：交流メインのゆるい併せです）" oninput="uf('intro',this.value)">${esc(e.intro)}</textarea>
+    ${presetHTML(e,'intro')}
+    <div class="note" style="margin-top:2px">各項目はON/OFFで表示を切り替えられます。OFFの項目はスクショ・ツイート文に載りません。「よく使われる文言から選ぶ」を開くと、実際の募集でよく使われる定型文をタップで追加できます。</div>
+
+    <div class="sech">【主催】</div>
+    <div class="row">
+      <input type="text" value="${esc(e.host)}" placeholder="名前" oninput="uf('host',this.value)">
+      <input type="text" value="${esc(e.hostTw)}" placeholder="@ID" oninput="uf('hostTw',this.value)">
+    </div>
+
+    <div class="sech">【作品】</div>
+    <input type="text" value="${esc(e.content)}" placeholder="コンテンツ名" oninput="uf('content',this.value)">
+
+    <div class="sech">【日程】</div>
+    ${`<div class="filterrow" style="margin-bottom:8px">
+      <button class="${!fixed?'on':''}" onclick="setDateType('tbd')">未定・調整中</button>
+      <button class="${fixed?'on':''}" onclick="setDateType('fixed')">決まっている</button>
+    </div>
+    ${fixed? `
+      <input type="datetime-local" value="${esc(e.date)}" onchange="uf('date',this.value)">
+      <div class="row" style="margin-top:4px">
+        <span class="fix" style="font-size:12px;color:var(--sub)">終了予定</span>
+        <input type="time" value="${esc(e.endTime)}" onchange="uf('endTime',this.value)">
+      </div>`
+    : `<input type="text" value="${esc(e.dateText)}" placeholder="例：12月ごろ〜 土日で調整中" oninput="uf('dateText',this.value)">`}`}
+
+    ${sechHTML(e,'place','【場所】')}
+    ${S('place')?`<input type="text" value="${esc(e.place)}" placeholder="エリア（例：名古屋市内で検討中）" oninput="uf('place',this.value)">
+    ${presetHTML(e,'place')}
+    <input type="text" value="${esc(e.studio)}" placeholder="スタジオ・イベント名（決まっていれば）" oninput="uf('studio',this.value)" style="margin-top:4px">
+    <div class="row" style="margin-top:4px">
+      <input type="text" value="${esc(e.placeUrl)}" placeholder="スタジオ/イベントのURL（任意）" oninput="uf('placeUrl',this.value)">
+      <button class="btn sec sm fix" onclick="openPlaceUrl()">開く</button>
+    </div>
+    <input type="text" value="${esc(e.station)}" placeholder="最寄駅（例：地下鉄◯◯駅 徒歩5分）" oninput="uf('station',this.value)" style="margin-top:4px">`:''}
+
+    <div class="sech">【衣装】</div>
+    <input type="text" value="${esc(e.costume)}" placeholder="例：通常衣装" oninput="uf('costume',this.value)">
+    ${presetHTML(e,'costume')}
+
+    ${sechHTML(e,'fee','【参加費】')}
+    ${S('fee')?`<div class="starh">レイヤー</div>
+    <input type="text" value="${esc(e.feeLayer)}" placeholder="例：スタジオ代3000円以下を予定（レイヤーで折半）" oninput="uf('feeLayer',this.value)">
+    ${presetHTML(e,'feeLayer')}
+    <div class="starh">カメラマン・アシスタント</div>
+    <input type="text" value="${esc(e.feeCamera)}" placeholder="例：スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください" oninput="uf('feeCamera',this.value)">
+    ${presetHTML(e,'feeCamera')}`:''}
+
+    <div class="sech">【募集キャラ・人数】</div>
+    <div id="recList">${e.recruits.map((r,i)=>recRow(r,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addRec()">＋ 追加</button>
+
+    <div class="sech">【募集条件】<span class="opt">1行に1つずつ</span></div>
+    <div class="note" style="margin:0 0 6px">※募集する身ではありますがトラブル防止の為、参加条件をもうけさせていただきます<br><span style="font-size:11px">↑この一文はスクショに自動で入ります</span></div>
+    ${`<div class="starh">☆参加者共通</div>
+    <textarea rows="3" placeholder="例：&#10;更衣の関係上、女性限定&#10;相互、参加者のFFさんまで" oninput="uf('condCommon',this.value)">${esc(e.condCommon)}</textarea>
+    ${presetHTML(e,'condCommon')}
+    <div class="starh">☆レイヤー</div>
+    <textarea rows="3" placeholder="例：&#10;ご自分で衣装、ウィッグがご用意できる方&#10;SNS掲載が可能な方" oninput="uf('condLayer',this.value)">${esc(e.condLayer)}</textarea>
+    ${presetHTML(e,'condLayer')}
+    <div class="starh">☆カメラマン・アシスタント</div>
+    <textarea rows="3" placeholder="例：&#10;1ヶ月以内に撮影データを送っていただける方&#10;カメラを所有していて扱える方" oninput="uf('condCamera',this.value)">${esc(e.condCamera)}</textarea>
+    ${presetHTML(e,'condCamera')}`}
+
+    ${sechHTML(e,'notes','【その他注意事項】')}
+    ${S('notes')?`<textarea rows="3" placeholder="例：&#10;スタジオ料金はレイヤーで負担&#10;プレゼント交換は予算1500円を検討" oninput="uf('notes',this.value)">${esc(e.notes)}</textarea>
+    ${presetHTML(e,'notes')}`:''}
+
+    ${sechHTML(e,'members','【確定メンバー】','キャラ / 名前 / @ID')}
+    ${S('members')?`<div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addMem()">＋ メンバーを追加</button>`:''}
+
+    ${sechHTML(e,'cameras','【カメラマン】')}
+    ${S('cameras')?`<div id="camList">${e.cameras.map((c,i)=>camRow(c,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addCam()">＋ カメラマンを追加</button>`:''}
+
+    ${sechHTML(e,'assistants','【アシスタント】')}
+    ${S('assistants')?`<div id="asList">${e.assistants.map((a,i)=>asRow(a,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addAs()">＋ アシスタントを追加</button>`:''}
+
+    ${sechHTML(e,'timetable','【当日タイムテーブル】')}
+    ${S('timetable')?`<div id="ttList">${e.timetable.map((t,i)=>ttRow(t,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addTT()">＋ 行を追加</button>`:''}
+
+    ${sechHTML(e,'hashtag','【ハッシュタグ】')}
+    ${S('hashtag')?`<input type="text" value="${esc(e.hashtag)}" placeholder="例：#○○併せ" oninput="uf('hashtag',this.value)">`:''}
+
+    <button class="btn wide" onclick="makeImages()" style="margin-top:26px">この募集内容をスクショにする</button>
+  </div>
+
+  <button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを削除</button>`;
+}
+
+function uf(k,val){ ev()[k]=val; save(); }
+function setDateType(t){
+  ev().dateType = t;
+  save();
+  renderTab();
+}
+
+function recRow(r,i){
+  return `<div class="row" style="margin-bottom:8px">
+    <input type="text" value="${esc(r.chara)}" placeholder="キャラ名・枠名" oninput="ev().recruits[${i}].chara=this.value;save()">
+    <input type="number" class="fix" style="width:70px" min="1" value="${esc(r.num)}" oninput="ev().recruits[${i}].num=this.value;save()">
+    <span class="fix" style="color:var(--sub);font-size:12px">名</span>
+    <button class="del" onclick="ev().recruits.splice(${i},1);save();renderTab()">✕</button>
+  </div>`;
+}
+function addRec(){ ev().recruits.push({chara:'',num:1}); save(); renderTab(); }
+
+function memRow(m,i){
+  return `<div class="row" style="margin-bottom:8px">
+    <input type="text" value="${esc(m.chara)}" placeholder="キャラ" oninput="ev().members[${i}].chara=this.value;save()">
+    <input type="text" value="${esc(m.name)}" placeholder="名前" oninput="ev().members[${i}].name=this.value;save()">
+    <input type="text" value="${esc(m.tw)}" placeholder="@ID" oninput="ev().members[${i}].tw=this.value;save()">
+    <button class="del" onclick="ev().members.splice(${i},1);save();renderTab()">✕</button>
+  </div>`;
+}
+function addMem(){
+  ev().members.push({chara:'',name:'',tw:'',prog:{ish:0,wig:0,item:0},memo:''});
+  save(); renderTab();
+}
+function camRow(c,i){
+  return `<div class="row" style="margin-bottom:8px">
+    <input type="text" value="${esc(c.name)}" placeholder="お名前" oninput="ev().cameras[${i}].name=this.value;save()">
+    <input type="text" value="${esc(c.tw)}" placeholder="@ID" oninput="ev().cameras[${i}].tw=this.value;save()">
+    <button class="del" onclick="ev().cameras.splice(${i},1);save();renderTab()">✕</button>
+  </div>`;
+}
+function addCam(){ ev().cameras.push({name:'',tw:''}); save(); renderTab(); }
+
+function asRow(a,i){
+  return `<div class="row" style="margin-bottom:8px">
+    <input type="text" value="${esc(a.name)}" placeholder="お名前" oninput="ev().assistants[${i}].name=this.value;save()">
+    <input type="text" value="${esc(a.tw)}" placeholder="@ID" oninput="ev().assistants[${i}].tw=this.value;save()">
+    <button class="del" onclick="ev().assistants.splice(${i},1);save();renderTab()">✕</button>
+  </div>`;
+}
+function addAs(){ ev().assistants.push({name:'',tw:''}); save(); renderTab(); }
+
+function ttRow(t,i){
+  return `<div class="ttrow">
+    <input type="time" class="t" value="${esc(t.time)}" onchange="ev().timetable[${i}].time=this.value;save()">
+    <input type="text" value="${esc(t.label)}" placeholder="例：スタジオ入り・メイク" oninput="ev().timetable[${i}].label=this.value;save()">
+    <button class="del" onclick="ev().timetable.splice(${i},1);save();renderTab()">✕</button>
+  </div>`;
+}
+function addTT(){ ev().timetable.push({time:'',label:''}); save(); renderTab(); }
+
+/* ---- URLを開く ---- */
+function openPlaceUrl(){
+  let u = (ev().placeUrl||'').trim();
+  if(!u){ toast('URLを入力してください'); return; }
+  if(!/^https?:\/\//i.test(u)) u = 'https://'+u;
+  window.open(u, '_blank');
+}/* ============ 募集内容の画像出力 & ツイート ============ */
+
+/* 要項ページ最下部のボタンから呼ばれる */
+function makeImages(){
+  const e = ev();
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>募集内容をスクショにする</h3>
+      <div class="note" style="margin:0 0 4px">要項の入力内容をそのまま1枚のスクショにしました。</div>
+      <div id="dtlHost" style="text-align:center"></div>
+      <button class="btn wide" onclick="downloadDetails()">スクショを写真に保存</button>
+      <div class="note">スマホでは共有メニューが開くので「画像を保存」を選ぶと写真アプリに入ります。パソコンではダウンロードされます。</div>
+      <div class="secttl" style="margin-top:20px">募集ポスト文（X用）</div>
+      <textarea id="twText" rows="8" style="font-size:13px" oninput="updateXCount()">${esc(tweetTemplate(e))}</textarea>
+      <div class="note" id="xCount" style="margin-top:4px"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" onclick="copyTweet()">コピー</button>
+        <button class="btn" onclick="openTwitter()">Xへ投稿</button>
+      </div>
+      <div class="note">投稿画面が本文入りで開きます。保存したスクショはそこで添付してください（自動添付はXの仕様上できません）。</div>
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+  renderDetailCanvases(e);
+  updateXCount();
+}
+
+/* ---- tweet ---- */
+/* X無料アカウントの上限（280文字換算・全角=2）に収まる短文テンプレ */
+function tweetTemplate(e){
+  const S = k => secOn(e,k);
+  let s = `【コスプレ併せ メンバー募集】\n`;
+  if(e.content && e.content!==e.title) s += `${e.content}\n`;
+  if(e.title) s += `${e.title}\n`;
+  s += `\n【日程】${dateDisp(e)}\n`;
+  if(S('place') && (e.place||e.studio)) s += `【場所】${e.place||e.studio}\n`;
+  s += `\n詳細は画像をご確認ください。\nご応募・ご質問はDMまで！`;
+  if(S('hashtag') && e.hashtag) s += `\n\n${e.hashtag}`;
+  s += `\n#コスプレ併せ募集`;
+  return s;
+}
+/* Xの文字数換算（半角=1、全角=2、URL=一律23） */
+function xWeight(s){
+  let n = 0;
+  String(s).split(/(https?:\/\/\S+)/).forEach(p=>{
+    if(/^https?:\/\//.test(p)){ n += 23; return; }
+    for(const ch of p) n += ch.codePointAt(0) <= 0x7F ? 1 : 2;
+  });
+  return n;
+}
+function updateXCount(){
+  const ta = document.getElementById('twText');
+  const el = document.getElementById('xCount');
+  if(!ta || !el) return;
+  const n = xWeight(ta.value);
+  el.innerHTML = `文字数：${n} / 280（無料アカウントの上限・全角=2換算）`
+    + (n>280 ? ' <b style="color:#e05252">オーバーしています</b>' : '');
+}
+function at(t){ t=String(t||'').trim(); return t? (t.startsWith('@')?t:'@'+t) : ''; }
+function copyTweet(){
+  const ta = document.getElementById('twText');
+  ta.select(); ta.setSelectionRange(0,99999);
+  try{ navigator.clipboard.writeText(ta.value); }catch(err){ document.execCommand('copy'); }
+  toast('コピーしました');
+}
+function openTwitter(){
+  const txt = document.getElementById('twText').value;
+  window.open('https://x.com/intent/tweet?text='+encodeURIComponent(txt),'_blank');
+}
+/* ファイル名に使えない文字・絵文字を除去 */
+function safeName(s){
+  s = String(s||'')
+    .replace(/[\\\/:*?"<>|#%&{}$!'@+`=~^;,\n\r\t]/g,'')
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/gu,'')
+    .replace(/\s+/g,'_')
+    .slice(0,30);
+  return s || 'awase';
+}
+function dataURLtoBlob(du){
+  const bin = atob(du.split(',')[1]);
+  const buf = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return new Blob([buf],{type:'image/png'});
+}
+async function downloadDetails(){
+  const img = document.querySelector('#dtlHost img.dtlcv');
+  if(!img){ toast('スクショがありません'); return; }
+  const name = safeName(ev().title)+'_bosyu.png';
+  const blob = dataURLtoBlob(img.src);
+  // スマホ（iOS/Android・Chrome/Safari）：共有シート経由で写真アプリに保存
+  try{
+    const file = new File([blob], name, {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file]});
+      return;
+    }
+  }catch(err){
+    if(err && err.name==='AbortError') return; // ユーザーがキャンセル
+    /* 共有に失敗した場合はダウンロードにフォールバック */
+  }
+  try{
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = name;
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    toast('保存しました');
+  }catch(err){
+    toast('保存できませんでした');
+  }
+}
+
+/* ---- canvas helpers ---- */
+function wrapText(ctx, text, maxW){
+  const out=[]; let line='';
+  for(const ch of String(text)){
+    if(ch==='\n'){ out.push(line); line=''; continue; }
+    if(ctx.measureText(line+ch).width > maxW){ out.push(line); line=ch; }
+    else line += ch;
+  }
+  out.push(line);
+  return out;
+}
+const FNT = '"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif';
+const INK = '#1a1a1a';
+const SUBINK = '#6e6e6e';
+const LINEC = '#dcdcdc';
+
+/* ---- 募集内容 → テキスト画像 ---- */
+function detailBlocks(e){
+  const B=[];
+  const S = k => secOn(e,k);
+  const lines = s => String(s||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  if(e.title) B.push({t:'h1', text:e.title});
+  if(e.intro){ B.push({t:'sp'}); lines(e.intro).forEach(l=>B.push({t:'b', text:l})); }
+  B.push({t:'sp'});
+  if(e.host) B.push({t:'b', text:`【主催】${e.host}${e.hostTw?`（${at(e.hostTw)}）`:''}`});
+  if(e.content) B.push({t:'b', text:`【作品】${e.content}`});
+  B.push({t:'b', text:`【日程】${dateDisp(e)}`});
+  if(S('place')){
+    if(e.place||e.studio) B.push({t:'b', text:`【場所】${e.place||''}${e.studio?`（${e.studio}）`:''}`});
+    if(e.placeUrl) B.push({t:'b', text:`【URL】${e.placeUrl}`});
+    if(e.station) B.push({t:'b', text:`【最寄駅】${e.station}`});
+  }
+  if(e.costume) B.push({t:'b', text:`【衣装】${e.costume}`});
+  if(S('fee') && (e.feeLayer||e.feeCamera)){
+    if(e.feeLayer && !e.feeCamera){
+      B.push({t:'b', text:`【参加費】${e.feeLayer}`});
+    }else if(e.feeCamera && !e.feeLayer){
+      B.push({t:'b', text:`【参加費】カメラマン：${e.feeCamera}`});
+    }else{
+      B.push({t:'b', text:'【参加費】'});
+      B.push({t:'b', text:`・レイヤー：${e.feeLayer}`});
+      B.push({t:'b', text:`・カメラマン：${e.feeCamera}`});
+    }
+  }
+  const recs = e.recruits.filter(r=>r.chara);
+  if(recs.length){
+    B.push({t:'sp'}, {t:'h', text:'【募集】'});
+    recs.forEach(r=>B.push({t:'b', text:`・${r.chara}（${r.num||1}名）`}));
+  }
+  const conds = [['☆参加者共通',e.condCommon],['☆レイヤー',e.condLayer],['☆カメラマン・アシスタント',e.condCamera]].filter(c=>c[1]&&c[1].trim());
+  if(conds.length){
+    B.push({t:'sp'});
+    B.push({t:'b', text:'※募集する身ではありますがトラブル防止の為、参加条件をもうけさせていただきます'});
+    B.push({t:'sp'}, {t:'h', text:'【募集条件】'});
+    conds.forEach(([h,body])=>{
+      B.push({t:'star', text:h});
+      lines(body).forEach(l=>B.push({t:'b', text:'・'+l.replace(/^[・･•]/,'')}));
+      B.push({t:'sp'});
+    });
+  }
+  if(S('notes') && e.notes && e.notes.trim()){
+    B.push({t:'h', text:'【その他注意事項】'});
+    lines(e.notes).forEach(l=>B.push({t:'b', text:'・'+l.replace(/^[・･•]/,'')}));
+    B.push({t:'sp'});
+  }
+  const mems = S('members')? e.members.filter(m=>m.chara||m.name) : [];
+  if(mems.length){
+    B.push({t:'h', text:'【確定メンバー】'});
+    mems.forEach(m=>B.push({t:'b', text:`・${m.chara||'？'}/${m.name||''}${m.tw?`（${at(m.tw)}）`:''}`}));
+  }
+  const cams = S('cameras')? e.cameras.filter(c=>c.name||c.tw) : [];
+  cams.forEach(c=>B.push({t:'b', text:`・カメラマン/${c.name||''}${c.tw?`（${at(c.tw)}）`:''}`}));
+  const asts = S('assistants')? (e.assistants||[]).filter(a=>a.name||a.tw) : [];
+  asts.forEach(a=>B.push({t:'b', text:`・アシスタント/${a.name||''}${a.tw?`（${at(a.tw)}）`:''}`}));
+  // 締め
+  B.push({t:'sp'}, {t:'b', text:'ご応募・お問い合わせはDMまでお願いします。'});
+  if(S('hashtag') && e.hashtag) B.push({t:'b', text:e.hashtag});
+  return B;
+}
+
+function renderDetailCanvases(e){
+  const host = document.getElementById('dtlHost');
+  host.innerHTML='';
+  const W=1080, M=84;
+  const meas = document.createElement('canvas').getContext('2d');
+
+  // 行リスト化（折り返し込み）
+  const rows=[]; let y=M+40;
+  const SZ = {h1:[50,84,800], h:[40,76,800], star:[36,70,700], b:[35,62,500], sp:[0,32,400]};
+  detailBlocks(e).forEach(bk=>{
+    const [size,lh,wt] = SZ[bk.t];
+    if(bk.t==='sp'){ rows.push({t:'sp', lh, y}); y+=lh; return; }
+    meas.font = `${wt} ${size}px ${FNT}`;
+    wrapText(meas, bk.text, W-M*2).forEach((l,i)=>{
+      rows.push({t:bk.t, text:l, size, lh, wt, cont:i>0, y});
+      y += lh;
+    });
+  });
+
+  if(!rows.length){
+    host.innerHTML = '<div class="note">要項に入力するとスクショが生成されます</div>';
+    return;
+  }
+
+  // 内容量に合わせた1枚の縦長画像
+  const H = Math.max(900, y + M);
+  const cv = document.createElement('canvas');
+  cv.width=W; cv.height=H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=LINEC; ctx.lineWidth=2;
+  ctx.strokeRect(28,28,W-56,H-56);
+  rows.forEach(r=>{
+    if(r.t==='sp') return;
+    ctx.font = `${r.wt} ${r.size}px ${FNT}`;
+    ctx.fillStyle = (r.t==='h1'||r.t==='h') ? INK : (r.t==='star'? SUBINK : '#3a3a3a');
+    ctx.fillText(r.text, M, r.y + r.size*0.55);
+    if(r.t==='h1' && !r.cont){
+      ctx.strokeStyle=INK; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(M, r.y+r.size*0.95); ctx.lineTo(M+ctx.measureText(r.text).width, r.y+r.size*0.95); ctx.stroke();
+    }
+  });
+  // 長押し保存（スマホ）が効くよう img 要素として表示
+  const img = document.createElement('img');
+  img.src = cv.toDataURL('image/png');
+  img.className = 'dtlcv';
+  img.alt = '募集内容';
+  host.appendChild(img);
+}
+
+/* toast */
+let toastTimer=null;
+function toast(msg){
+  let el = document.getElementById('toastEl');
+  if(!el){
+    el = document.createElement('div');
+    el.id='toastEl';
+    el.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,.92);color:#fff;padding:10px 22px;border-radius:6px;font-size:13.5px;font-weight:700;z-index:200;transition:opacity .3s;max-width:86%;text-align:center;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity='1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.opacity='0'; }, 2200);
+}
+/* ============ 進捗・カウントダウン & 構図共有 ============ */
+
+const PROG_LABELS = ['未着手','準備中','完成'];
+const PROG_ITEMS = [['ish','衣装'],['wig','ウィッグ'],['item','小物']];
+
+function renderProg(){
+  const e = ev();
+  const v = document.getElementById('view');
+  const total = e.members.length*3;
+  const done = e.members.reduce((a,m)=>a+(m.prog?( (m.prog.ish===2)+(m.prog.wig===2)+(m.prog.item===2) ):0),0);
+  const pct = total? Math.round(done/total*100) : 0;
+
+  const tt = e.timetable.filter(t=>t.time||t.label);
+  const fixed = isFixed(e);
+  v.innerHTML = `
+  <div class="cdbig">
+    <div class="lbl">${fixed?'撮影日まで':'日程'}</div>
+    ${fixed
+      ? `<div class="num" data-cd="${e.date}">${cdText(e.date)}</div>`
+      : `<div class="num" style="font-size:26px;padding:6px 0">${esc(dateDisp(e))}</div>`}
+    <div class="sub">${fixed?esc(dateDisp(e)):''}${e.place?`${fixed?' ／ ':''}${esc(e.place)}`:''}</div>
+    ${e.station?`<div class="sub" style="margin-top:6px">最寄駅：${esc(e.station)}</div>`:''}
+  </div>
+
+  <div class="card">
+    <h3>全体の準備進捗</h3>
+    <div class="pbar"><div style="width:${pct}%"></div></div>
+    <div style="font-size:12.5px;color:var(--sub);text-align:right">${done} / ${total} 完成（${pct}%）</div>
+  </div>
+
+  ${tt.length?`<div class="card"><h3>当日タイムテーブル</h3>
+    ${tt.map(t=>`<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px dashed var(--line)">
+      <b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join('')}
+  </div>`:''}
+
+  <div class="secttl">メンバー別 進捗（タップで切替）</div>
+  ${e.members.length? e.members.map((m,i)=>{
+    if(!m.prog) m.prog={ish:0,wig:0,item:0};
+    return `<div class="mcard">
+      <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span></div>
+      ${PROG_ITEMS.map(([k,lbl])=>`
+        <div class="plabel">${lbl}</div>
+        <div class="st3">${PROG_LABELS.map((pl,s)=>
+          `<button class="${m.prog[k]===s?'s'+s:''}" onclick="setProg(${i},'${k}',${s})">${pl}</button>`).join('')}
+        </div>`).join('')}
+      <label class="fl">メモ（購入予定・課題など）</label>
+      <input type="text" value="${esc(m.memo||'')}" placeholder="例：ウィッグカット残り" oninput="ev().members[${i}].memo=this.value;save()">
+    </div>`;
+  }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「要項」タブでメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
+}
+function setProg(i,k,s){
+  ev().members[i].prog[k]=s;
+  save(); renderTab();
+}
+
+/* ============ shots (構図共有 v2) ============
+   役割: 主催（この端末で作成した併せ）= 追加・削除・優先度・並べ替え
+        招待者 = 追加申請のみ（主催の承認で一覧に入る）
+        撮影済みチェックとコメントは全員可
+*/
+
+const PRIO_LABELS = ['指定なし','優先','絶対撮りたい'];
+const PRIO_BADGE = ['','優先','絶対'];
+const MAX_SHOTS = 30;
+const MAX_PENDING = 10;
+
+function shotComments(e,sid){
+  if(!e.comments) e.comments = {};
+  if(!e.comments[sid]) e.comments[sid] = [];
+  return e.comments[sid];
+}
+function gridSrc(s){ return s.turl || s.timg || s.url || s.img || ''; }
+function fullSrc(s){ return s.url || s.img || s.turl || s.timg || ''; }
+function shortTime(t){
+  const d = new Date(t);
+  if(isNaN(d)) return '';
+  return `${d.getMonth()+1}/${d.getDate()} ${('0'+d.getHours()).slice(-2)}:${('0'+d.getMinutes()).slice(-2)}`;
+}
+
+/* 保存ヘルパー: 対象ブランチだけを同期に流す
+   （shotsはupdatedAtも進めてmetaを併送し、再接続時の新旧判定を正しく保つ） */
+function saveShots(){ const e=ev(); if(!e) return; e.updatedAt=Date.now(); store.set(state); updateSavedBar(); pushBranch(e,'shots'); pushBranch(e,'meta'); }
+function saveComments(){ store.set(state); if(ev()) pushBranch(ev(),'comments'); }
+function savePending(){ store.set(state); if(ev()) pushBranch(ev(),'pending'); }
+
+function renderShots(){
+  const e = ev();
+  const v = document.getElementById('view');
+  const owner = isOwner(e);
+  const done = e.shots.filter(s=>s.done).length;
+  const pct = e.shots.length? Math.round(done/e.shots.length*100):0;
+  let list = e.shots.map((s,i)=>({s,i}));
+  if(shotFilter==='todo') list = list.filter(x=>!x.s.done);
+  if(shotFilter==='done') list = list.filter(x=>x.s.done);
+  const pend = e.pending || [];
+
+  v.innerHTML = `
+  ${pend.length? `<div class="card">
+    <h3>追加申請 <span class="cnt">${pend.length}件</span></h3>
+    ${owner? '<div class="note" style="margin:0 0 8px">メンバーからの構図の追加申請です。承認すると一覧に追加されます。</div>':''}
+    ${pend.map((p,i)=>`
+      <div class="pend" onclick="openPending(${i})">
+        <img src="${gridSrc(p)}" alt="">
+        <div class="pbody">
+          <div class="who">${esc(p.by)||'名前未設定'}<span class="when">${shortTime(p.at)}</span></div>
+          <div class="cap2">${esc(p.cap)||'（コメントなし）'}</div>
+          <div class="st">${owner?'タップして承認 / 却下':'承認待ち'}</div>
+        </div>
+      </div>`).join('')}
+  </div>`:''}
+
+  <div class="card">
+    <h3>撮りたい構図 <span class="cnt">${e.shots.length}/${MAX_SHOTS}枚</span></h3>
+    <div class="pbar"><div style="width:${pct}%"></div></div>
+    <div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:10px">撮影済み ${done} / ${e.shots.length}（${pct}%）</div>
+    <div class="filterrow">
+      <button class="${shotFilter==='all'?'on':''}" onclick="shotFilter='all';renderTab()">すべて</button>
+      <button class="${shotFilter==='todo'?'on':''}" onclick="shotFilter='todo';renderTab()">未撮影</button>
+      <button class="${shotFilter==='done'?'on':''}" onclick="shotFilter='done';renderTab()">撮影済み</button>
+    </div>
+    <div class="shotgrid">
+      ${list.map(({s,i})=>{
+        const nc = (e.comments && e.comments[s.id] || []).length;
+        return `<div class="shot ${s.done?'done':''}" onclick="openShot(${i})">
+          <img src="${gridSrc(s)}" alt="">
+          <span class="num">${i+1}</span>
+          ${s.prio? `<span class="prio p${s.prio}">${PRIO_BADGE[s.prio]}</span>`:''}
+          <span class="ck"><span>済</span></span>
+          ${s.cap?`<span class="cap">${esc(s.cap)}</span>`:''}
+          ${nc? `<span class="cc">コメント${nc}</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    ${!e.shots.length?`<div style="text-align:center;color:var(--sub);font-size:13px;padding:18px 0">参考にしたい構図・ポーズの画像を追加しましょう。<br>メンバーもカメラマンも同じリストを見られます。</div>`:''}
+    <input type="file" id="shotFile" accept="image/*" multiple class="hidden" onchange="addShots(this.files)">
+    ${owner
+      ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を追加（複数可）</button>
+         <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮影が終わった構図はタップして「撮影済みにする」でグレーアウトします。</div>`
+      : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を申請する</button>
+         <div class="note">申請した画像は主催の承認後に一覧へ追加されます。構図へのコメントと撮影済みチェックは誰でもできます。</div>`}
+  </div>`;
+}
+
+function addShots(files){
+  const e = ev();
+  const owner = isOwner(e);
+  const limit = owner ? MAX_SHOTS - e.shots.length : MAX_PENDING - (e.pending||[]).length;
+  const arr = Array.from(files||[]).slice(0, Math.max(0,limit));
+  if(!arr.length) return;
+  if(!owner && !myName()){ ensureName(()=>addShotArr(arr,owner)); return; }
+  addShotArr(arr, owner);
+}
+async function addShotArr(arr, owner){
+  const e = ev();
+  toast('画像を読み込み中…');
+  let added = 0, failed = 0;
+  for(const f of arr){
+    try{
+      const full = await compressImage(f, 720, .74);
+      const thumb = await compressImage(f, 220, .66);
+      const id = uid();
+      let item = {id, img:null, timg:null, url:null, turl:null, cap:'', done:false, prio:0, by:myName()||'', byId:clientId(), at:Date.now()};
+      if(syncReady() && imgApiReady()){
+        const up = await uploadShotImage(e.sync.room, id, full, thumb);
+        item.url = up.url; item.turl = up.turl;
+      }else{
+        item.img = full; item.timg = thumb;
+      }
+      if(owner){ e.shots.push(item); }
+      else{ if(!e.pending) e.pending=[]; e.pending.push(item); }
+      added++;
+    }catch(err){ console.warn(err); failed++; }
+  }
+  if(owner) saveShots(); else savePending();
+  renderTab();
+  toast(failed? `${added}枚追加・${failed}枚失敗しました` : (owner?'追加しました':'申請しました。主催の承認をお待ちください'));
+}
+function compressImage(file, max, q){
+  return new Promise((res,rej)=>{
+    const img = new Image();
+    const fr = new FileReader();
+    fr.onload = ()=>{ img.src = fr.result; };
+    fr.onerror = rej;
+    img.onload = ()=>{
+      let w=img.width, h=img.height;
+      const sc = Math.min(1, max/Math.max(w,h));
+      w=Math.round(w*sc); h=Math.round(h*sc);
+      const cv=document.createElement('canvas');
+      cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      res(cv.toDataURL('image/jpeg', q));
+    };
+    img.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+function openShot(i){
+  const e = ev();
+  const s = e.shots[i];
+  if(!s) return;
+  const owner = isOwner(e);
+  const cs = (e.comments && e.comments[s.id]) || [];
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>構図 ${i+1} / ${e.shots.length}${s.by?`<span class="opt2">追加：${esc(s.by)}</span>`:''}</h3>
+      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:grayscale(1) brightness(.7)':''}">
+
+      <label class="fl">優先度${owner?'':'（主催のみ変更できます）'}</label>
+      <div class="st3">${PRIO_LABELS.map((pl,p)=>
+        `<button class="${s.prio===p?'s'+(p?2:1):''}" ${owner?`onclick="setPrio(${i},${p})"`:'disabled'}>${pl}</button>`).join('')}
+      </div>
+
+      <label class="fl">メモ・キャプション（ポーズ指定など）</label>
+      ${owner
+        ? `<input type="text" value="${esc(s.cap)}" oninput="ev().shots[${i}].cap=this.value;saveShots()">`
+        : `<div style="font-size:13.5px;padding:4px 2px;border-bottom:1px solid var(--line);min-height:28px">${esc(s.cap)||'<span style="color:var(--sub)">（なし）</span>'}</div>`}
+
+      <label class="fl">コメント（撮りたい度・撮影の相談など）</label>
+      <div class="cmts">
+        ${cs.length? cs.map(c=>`<div class="cmt"><span class="who">${esc(c.name)}</span><span class="when">${shortTime(c.at)}</span><br>${esc(c.text)}</div>`).join('')
+          : '<div class="note" style="margin:2px 0 6px">まだコメントはありません</div>'}
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" id="cmtInput" placeholder="例：この角度は当日要相談" onkeydown="if(event.key==='Enter')addComment(${i})">
+        <button class="btn sec sm fix" onclick="addComment(${i})">送信</button>
+      </div>
+
+      <button class="btn wide" style="${s.done?'background:var(--sub);border-color:var(--sub)':''}" onclick="toggleShot(${i})">
+        ${s.done? '未撮影に戻す' : '撮影済みにする'}</button>
+      ${owner?`<div class="row" style="margin-top:8px">
+        <button class="btn ghost sm" onclick="moveShot(${i},-1)">前へ移動</button>
+        <button class="btn ghost sm" onclick="moveShot(${i},1)">後へ移動</button>
+        <button class="btn ghost sm" onclick="delShot(${i})">削除</button>
+      </div>`:''}
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+function closeModal(){ document.getElementById('modalHost').innerHTML=''; }
+function setPrio(i,p){
+  ev().shots[i].prio = p;
+  saveShots(); openShot(i);
+}
+function toggleShot(i){
+  const s = ev().shots[i];
+  s.done = !s.done;
+  saveShots(); closeModal(); renderTab();
+}
+function moveShot(i,d){
+  const a = ev().shots;
+  const j = i+d;
+  if(j<0||j>=a.length) return;
+  [a[i],a[j]]=[a[j],a[i]];
+  saveShots(); closeModal(); renderTab();
+}
+function delShot(i){
+  if(!confirm('この構図を削除しますか？（コメントも消えます）')) return;
+  const e = ev();
+  const s = e.shots[i];
+  e.shots.splice(i,1);
+  if(e.comments && e.comments[s.id]) delete e.comments[s.id];
+  if(s.url) deleteShotImage(e.sync.room, s.id);
+  saveShots(); saveComments(); closeModal(); renderTab();
+}
+
+/* ---- コメント ---- */
+function addComment(i, pre){
+  const inp = document.getElementById('cmtInput');
+  const text = ((pre!=null ? pre : (inp && inp.value)) || '').trim();
+  if(!text) return;
+  if(!myName()){ ensureName(()=>addComment(i, text)); return; }
+  const e = ev();
+  const s = e.shots[i];
+  shotComments(e, s.id).push({id:uid(), name:myName(), text, at:Date.now()});
+  saveComments(); renderTab(); openShot(i);
+}
+
+/* ---- 追加申請の承認・却下 ---- */
+function openPending(i){
+  const e = ev();
+  const p = (e.pending||[])[i];
+  if(!p) return;
+  const owner = isOwner(e);
+  const mine = p.byId && p.byId === clientId();
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>追加申請<span class="opt2">申請：${esc(p.by)||'名前未設定'} ${shortTime(p.at)}</span></h3>
+      <img class="prev" src="${fullSrc(p)}">
+      ${p.cap?`<div style="font-size:13.5px;margin-bottom:8px">${esc(p.cap)}</div>`:''}
+      ${owner
+        ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="approvePending(${i})">承認して一覧に追加</button>
+           <button class="btn ghost wide" onclick="rejectPending(${i})">却下する</button>`
+        : (mine? `<button class="btn ghost wide" onclick="rejectPending(${i})">申請を取り消す</button>`
+               : `<div class="note">主催の承認待ちです</div>`)}
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+function approvePending(i){
+  const e = ev();
+  if(e.shots.length >= MAX_SHOTS){ toast('構図が上限に達しています'); return; }
+  const p = e.pending.splice(i,1)[0];
+  if(!p) return;
+  e.shots.push(p);
+  saveShots(); savePending(); closeModal(); renderTab();
+  toast('一覧に追加しました');
+}
+function rejectPending(i){
+  const e = ev();
+  const p = e.pending[i];
+  if(!p) return;
+  if(!confirm('この申請を削除しますか？')) return;
+  e.pending.splice(i,1);
+  if(p.url) deleteShotImage(e.sync.room, p.id);
+  savePending(); closeModal(); renderTab();
+}
+
+/* ---- 表示名の入力（コメント・申請の前に一度だけ） ---- */
+let nameCb = null;
+function ensureName(cb){
+  nameCb = cb || null;
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal">
+    <div class="box">
+      <h3>お名前を教えてください</h3>
+      <div class="note" style="margin:0 0 8px">コメントや申請に表示される名前です（コスネーム推奨・あとで変更できます）</div>
+      <input type="text" id="nameInput" placeholder="例：もうふ" onkeydown="if(event.key==='Enter')saveNameInput()">
+      <button class="btn wide" onclick="saveNameInput()">決定</button>
+      <button class="btn sec wide" onclick="closeModal();nameCb=null">キャンセル</button>
+    </div>
+  </div>`;
+  setTimeout(()=>{ const el=document.getElementById('nameInput'); if(el) el.focus(); }, 50);
+}
+function saveNameInput(){
+  const el = document.getElementById('nameInput');
+  const n = (el && el.value || '').trim();
+  if(!n){ toast('名前を入力してください'); return; }
+  setMyName(n);
+  closeModal();
+  const cb = nameCb; nameCb = null;
+  if(cb) cb();
+}
+
+/* countdown ticker */
+setInterval(()=>{
+  document.querySelectorAll('[data-cd]').forEach(el=>{
+    const d = el.getAttribute('data-cd');
+    if(d) el.textContent = cdText(d);
+  });
+}, 30000);
+/* ============ 自動同期・招待・バックアップ ============ */
+
+/* ▼▼▼ 同期サーバー設定 ▼▼▼
+   SYNC_CONFIG: Firebase プロジェクトの設定を貼ると「開くだけで同期」が有効になります。
+   IMG_API:     Cloudflare Worker（worker/worker.js）のURLを貼ると、構図画像が
+                R2に保存され、メンバー間で共有されるようになります。
+   ※ 構図共有を含む本格運用は両方の設定が前提です（未設定なら端末内のみで動作）。
+   設定手順: docs/SETUP-同期サーバー.md
+   例: const SYNC_CONFIG = { apiKey:"...", databaseURL:"https://xxx.firebasedatabase.app", projectId:"..." };
+       const IMG_API = 'https://awase-imgs.xxxx.workers.dev';
+*/
+const SYNC_CONFIG = null;
+const IMG_API = null;
+/* ▲▲▲ ここまで ▲▲▲ */
+
+const BRANCHES = ['meta','shots','comments','pending'];
+const conns = {};        // eventId -> firebase ref (部屋のルート)
+const pushTimers = {};
+let fbLoaded = false;
+let fbFailed = false;
+
+function syncReady(){ return !!SYNC_CONFIG && !fbFailed; }
+function imgApiReady(){ return !!IMG_API; }
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=()=>rej(new Error('load fail: '+src));
+    document.head.appendChild(s);
+  });
+}
+async function ensureFirebase(){
+  if(fbLoaded) return;
+  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+  if(!firebase.apps.length) firebase.initializeApp(SYNC_CONFIG);
+  fbLoaded = true;
+}
+
+/* ---- 画像API（Cloudflare Worker + R2） ---- */
+async function uploadShotImage(room, id, full, thumb){
+  const r = await fetch(IMG_API.replace(/\/$/,'') + '/upload', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({room, id, full, thumb})
+  });
+  if(!r.ok) throw new Error('upload failed: '+r.status);
+  return r.json(); // {url, turl}
+}
+function deleteShotImage(room, id){
+  if(!imgApiReady()) return;
+  try{
+    fetch(IMG_API.replace(/\/$/,'') + '/delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({room, id})
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+/* ---- ブランチ分割同期 ----
+   コスト構造上の要:  イベント全体をset()せず、meta(要項)/shots(構図)/
+   comments(コメント)/pending(申請) を別ノードで差分同期する。
+   画像本体はR2のURL参照のみで、RTDBには載せない（IMG_API設定時）。 */
+
+function arrify(v){
+  if(v==null) return [];
+  const a = Array.isArray(v) ? v : Object.values(v);
+  return a.filter(x=>x!=null);
+}
+function stripNulls(x){
+  if(Array.isArray(x)) return x.map(stripNulls);
+  if(x && typeof x==='object'){
+    const o={};
+    Object.keys(x).forEach(k=>{ if(x[k]!=null) o[k]=stripNulls(x[k]); });
+    return o;
+  }
+  return x;
+}
+function cleanMeta(e){
+  const m = JSON.parse(JSON.stringify(e));
+  delete m.id; delete m.sync; delete m.shots; delete m.pending; delete m.comments;
+  return m;
+}
+const SHOT_DEFAULTS = {img:null,timg:null,url:null,turl:null,cap:'',done:false,prio:0,by:'',byId:'',at:0};
+function normShot(s){ return Object.assign({}, SHOT_DEFAULTS, s); }
+
+function branchPayload(e, branch){
+  if(branch==='meta') return stripNulls(cleanMeta(e));
+  if(branch==='comments'){
+    const map = {};
+    Object.keys(e.comments||{}).forEach(k=>{ const a=arrify(e.comments[k]); if(a.length) map[k]=a; });
+    return {by: clientId(), at: Date.now(), map: stripNulls(map)};
+  }
+  const list = branch==='shots' ? e.shots : (e.pending||[]);
+  return {by: clientId(), at: Date.now(), list: stripNulls(list)};
+}
+
+function pushBranch(e, branch, now){
+  if(!e || !syncReady() || !conns[e.id]) return;
+  const key = e.id + ':' + branch;
+  clearTimeout(pushTimers[key]);
+  const doPush = ()=>{
+    try{ conns[e.id].child(branch).set(branchPayload(e, branch)); }
+    catch(err){ console.warn('push error:', err); }
+  };
+  if(now) doPush();
+  else pushTimers[key] = setTimeout(doPush, 600);
+}
+function pushAll(e){ BRANCHES.forEach(b=>pushBranch(e, b, true)); }
+/* 旧APIとの互換: save()（要項の編集）からはmetaだけ流す */
+function schedulePush(e){ pushBranch(e, 'meta'); }
+
+function applyMeta(local, v){
+  if(!v || !(v.updatedAt > (local.updatedAt||0))) return false;
+  const base = cleanMeta(blankEvent());
+  Object.keys(base).forEach(k=>{
+    local[k] = (v[k]!==undefined) ? v[k] : base[k];
+  });
+  ['recruits','members','cameras','assistants','timetable'].forEach(k=>{ local[k] = arrify(local[k]); });
+  if(!local.sec || typeof local.sec!=='object') local.sec = {};
+  local.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
+  return true;
+}
+function onRemote(id, branch, v){
+  const local = state.events.find(x=>x.id===id);
+  if(!local) return;
+  /* 自分の書き込みのエコーは無視（clientIdで判定） */
+  if(v && v.by === clientId() && branch!=='meta') return;
+  let changed = false;
+  if(branch==='meta'){
+    changed = applyMeta(local, v);
+  }else if(branch==='comments'){
+    const map = {};
+    const src = (v && v.map) || {};
+    Object.keys(src).forEach(k=>{ map[k] = arrify(src[k]); });
+    if(JSON.stringify(map) !== JSON.stringify(local.comments||{})){ local.comments = map; changed = true; }
+  }else{
+    const list = arrify(v && v.list).map(branch==='shots'? normShot : (x=>x));
+    const key = branch; // shots | pending
+    if(JSON.stringify(stripNulls(list)) !== JSON.stringify(stripNulls(local[key]||[]))){ local[key] = list; changed = true; }
+  }
+  if(changed){
+    store.set(state);
+    if(cur===id) renderTab();
+    updateSavedBar();
+  }
+}
+function adoptRemote(local, v){
+  if(v.meta) applyMeta(local, Object.assign({}, v.meta, {updatedAt: Math.max(v.meta.updatedAt||0, (local.updatedAt||0)+1)}));
+  local.shots = arrify(v.shots && v.shots.list).map(normShot);
+  local.pending = arrify(v.pending && v.pending.list);
+  const map = {};
+  Object.keys((v.comments && v.comments.map) || {}).forEach(k=>{ map[k] = arrify(v.comments.map[k]); });
+  local.comments = map;
+  store.set(state);
+  if(cur===local.id) renderTab();
+  updateSavedBar();
+}
+
+/* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
+async function connectEvent(e){
+  if(!e || !syncReady() || conns[e.id]) return;
+  if(!e.sync || !e.sync.room){ e.sync = {room: roomId()}; store.set(state); }
+  try{
+    await ensureFirebase();
+  }catch(err){ fbFailed = true; console.warn('sync unavailable:', err); return; }
+  const base = firebase.database().ref('awase/'+e.sync.room);
+  conns[e.id] = base;
+  base.once('value').then(snap=>{
+    const v = snap.val();
+    const local = state.events.find(x=>x.id===e.id);
+    if(!local){ delete conns[e.id]; return; }
+    const remoteAt = (v && v.meta && v.meta.updatedAt) || 0;
+    if(!v){
+      if(hasContent(local) && isOwner(local)) pushAll(local);
+    }else if(remoteAt >= (local.updatedAt||0)){
+      adoptRemote(local, v);
+    }else{
+      pushAll(local);
+    }
+    BRANCHES.forEach(b=>{
+      base.child(b).on('value', s=>onRemote(e.id, b, s.val()), err=>console.warn('sync error:', err));
+    });
+  }).catch(err=>{ console.warn('sync error:', err); });
+}
+function disconnectEvent(id){
+  const base = conns[id];
+  if(base){
+    BRANCHES.forEach(b=>{ try{ base.child(b).off(); }catch(e){} });
+    delete conns[id];
+  }
+}
+
+/* ---- 招待（メンバー・カメラマン向け） ---- */
+function inviteURL(e){
+  if(location.protocol.startsWith('http')){
+    return location.origin + location.pathname + '#join=' + e.sync.room;
+  }
+  return null;
+}
+function showInvite(){
+  const e = ev();
+  if(!e) return;
+  if(!SYNC_CONFIG){
+    document.getElementById('modalHost').innerHTML = `
+    <div class="modal" onclick="if(event.target===this)closeModal()">
+      <div class="box">
+        <h3>メンバーを招待</h3>
+        <div style="font-size:13.5px;line-height:1.8">
+          このアプリはまだ<b>共有サーバーが設定されていない</b>ため、いまはこの端末の中だけで動いています。<br><br>
+          共有サーバーを設定すると、メンバーは<b>リンクを開くだけ</b>で同じデータに繋がり、構図の共有・コメント・撮影済みチェックがリアルタイムで全員に反映されます（LINEのような使い心地になります）。<br><br>
+          設定は配布元（主催者向けガイド）をご覧ください。
+        </div>
+        <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      </div>
+    </div>`;
+    return;
+  }
+  const url = inviteURL(e);
+  const shareText = url
+    ? `「${e.title||'併せ'}」に招待します！\nこのリンクを開くだけで参加できます。\n${url}`
+    : `「${e.title||'併せ'}」に招待します！\n併せPlannerを開いて「招待コードで参加する」にこのコードを入力してください。\n${e.sync.room}`;
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>メンバーを招待</h3>
+      <div style="font-size:13.5px;line-height:1.8;margin-bottom:10px">
+        ${url? 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！'
+             : 'この招待コードをLINEやDMで送ってください。'}
+      </div>
+      ${url? `<div style="background:var(--acbg);border-radius:10px;padding:10px;font-size:12px;word-break:break-all">${esc(url)}</div>`
+           : `<div style="background:var(--acbg);border-radius:12px;padding:14px;text-align:center;font-size:22px;font-weight:800;letter-spacing:.05em;color:var(--ac)">${esc(e.sync.room)}</div>`}
+      <button class="btn wide" onclick="copyText(${JSON.stringify(shareText).replace(/"/g,'&quot;')})">招待メッセージをコピー</button>
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+function copyText(t){
+  try{ navigator.clipboard.writeText(t); }catch(err){
+    const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  toast('コピーしました');
+  closeModal();
+}
+function joinPrompt(){
+  const code = prompt('招待コード（またはリンク）を貼り付けてください');
+  if(code) joinByCode(code);
+}
+function joinByCode(code){
+  code = String(code||'').trim();
+  const m = code.match(/#join=([\w-]+)/);
+  if(m) code = m[1];
+  if(!code){ toast('コードが空です'); return; }
+  if(!SYNC_CONFIG){ toast('共有サーバーが未設定のため参加できません'); return; }
+  let e = state.events.find(x=>x.sync && x.sync.room===code);
+  if(!e){
+    e = blankEvent();
+    e.sync.room = code;
+    e.updatedAt = 0; // リモートのデータを必ず受け入れる（この端末は招待者=主催権限なし）
+    state.events.push(e);
+    store.set(state);
+  }
+  openEvent(e.id,'info');
+  toast('接続中…');
+}
+
+/* ---- バックアップ ---- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(state,null,1)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.download = 'awase_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  toast('保存しました');
+}
+function importJSON(){
+  const inp = document.createElement('input');
+  inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange = ()=>{
+    const f = inp.files[0];
+    if(!f) return;
+    const fr = new FileReader();
+    fr.onload = ()=>{
+      try{
+        const d = JSON.parse(fr.result);
+        if(d.events){
+          d.events.forEach(ne=>{
+            const i = state.events.findIndex(x=>x.id===ne.id);
+            if(i<0) state.events.push(ne);
+            else if((ne.updatedAt||0) > (state.events[i].updatedAt||0)) state.events[i]=ne;
+          });
+          store.set(state);
+          toast('復元しました');
+          cur? renderTab() : openStart();
+          updateSavedBar();
+        }else toast('データ形式が違います');
+      }catch(err){ toast('読み込みに失敗しました'); }
+    };
+    fr.readAsText(f);
+  };
+  inp.click();
+}
+
+/* ---- init ---- */
+(function init(){
+  const saved = store.get();
+  if(saved && saved.events) state = saved;
+
+  /* 既存データの所有マーク（初回のみ）: 同期は今まで無効だったので
+     この端末にある併せはすべてこの端末で作られたもの＝主催 */
+  try{
+    if(localStorage.getItem('awaseOwned') == null){
+      const o = {};
+      state.events.forEach(e=>{ o[e.id] = true; });
+      localStorage.setItem('awaseOwned', JSON.stringify(o));
+    }
+  }catch(e){}
+
+  state.events.forEach(e=>{
+    if(!e.sync || !e.sync.room) e.sync={room: roomId()};
+    if(!e.timetable) e.timetable=[];
+    if(!e.assistants) e.assistants=[];
+    if(!e.sec) e.sec={};
+    if(!e.pending) e.pending=[];
+    if(!e.comments || typeof e.comments!=='object') e.comments={};
+    ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText'].forEach(k=>{ if(e[k]==null) e[k]=''; });
+    if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
+    if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
+    e.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
+    e.shots = (e.shots||[]).map(normShot);
+  });
+  store.set(state);
+
+  // 招待リンク (#join=xxx) から開いた場合は自動参加、それ以外は要項ページを直接表示
+  const m = location.hash.match(/#join=([\w-]+)/);
+  if(m && SYNC_CONFIG){
+    history.replaceState(null,'',location.pathname+location.search);
+    joinByCode(m[1]);
+  }else{
+    openStart();
+  }
+
+  // 開いた時点で全併せを自動同期（LINE的な挙動・操作不要）
+  if(SYNC_CONFIG){
+    state.events.forEach(e=>connectEvent(e));
+  }
+})();
+</script>
+</body></html>
