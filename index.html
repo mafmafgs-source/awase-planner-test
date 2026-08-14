@@ -12,11 +12,13 @@
   --r:8px; --sh:0 1px 3px rgba(0,0,0,.06);
 }
 *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
-html,body{height:100%;}
+html{height:100%;}
+body{min-height:100%;}
 body{
   font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
   background:var(--bg); color:var(--tx); font-size:15px; line-height:1.6;
-  max-width:640px; margin:0 auto; padding-bottom:90px;
+  max-width:640px; margin:0 auto;
+  padding-bottom:calc(120px + env(safe-area-inset-bottom));
 }
 #topStick{position:sticky; top:0; z-index:50;}
 .savedbar{
@@ -105,6 +107,15 @@ textarea{resize:vertical;}
 .mcard{border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px; background:var(--card);}
 .mcard .nm{font-weight:700; font-size:14.5px;}
 .mcard .tw{color:var(--sub); font-size:12px; font-weight:400;}
+.mytag{font-size:10px; font-weight:800; border:1px solid var(--tx); border-radius:99px; padding:1px 8px; margin-left:6px; vertical-align:2px;}
+.mytag.other{color:var(--sub); border-color:var(--line);}
+.claimbtn{
+  margin-left:6px; font-size:10.5px; font-weight:700; border:1px solid var(--line);
+  background:var(--card); color:var(--sub); border-radius:99px; padding:2px 10px;
+  cursor:pointer; font-family:inherit; vertical-align:2px;
+}
+.st3 button:disabled{opacity:.5; cursor:default;}
+input[readonly]{color:var(--sub);}
 .plabel{font-size:11.5px; color:var(--sub); margin-top:10px; font-weight:600;}
 /* countdown */
 .cdbig{
@@ -465,6 +476,7 @@ function renderTab(){
 function renderAwase(){
   const e = ev();
   const v = document.getElementById('view');
+  const owner = isOwner(e);
   const S = k => secOn(e,k);
   const line = s => esc(s).replace(/\n/g,'<br>');
   const sect = (label, html) => `<div class="sech">${label}</div><div class="ro">${html}</div>`;
@@ -489,11 +501,17 @@ function renderAwase(){
   if(S('cameras') && e.cameras.length) out += sect('【カメラマン】', e.cameras.map(person).join(''));
   if(S('assistants') && e.assistants.length) out += sect('【アシスタント】', e.assistants.map(person).join(''));
   const tt = e.timetable.filter(t=>t.time||t.label);
-  if(S('timetable') && tt.length) out += sect('【当日タイムテーブル】',
-    tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
+  if(owner){
+    out += `<div class="sech">【当日タイムテーブル】</div>
+    <div class="note" style="margin:0 0 6px">当日の流れ。参加者の併せページと進捗タブに表示されます（募集スクショには載りません）</div>
+    <div id="ttList">${e.timetable.map((t,i)=>ttRow(t,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addTT()">＋ 行を追加</button>`;
+  }else if(tt.length){
+    out += sect('【当日タイムテーブル】',
+      tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
+  }
   if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
 
-  const owner = isOwner(e);
   v.innerHTML = `
   <div class="doc">
     <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
@@ -740,7 +758,8 @@ function renderInfo(){
     ${presetHTML(e,'notes')}`:''}
 
     ${sechHTML(e,'members','【確定メンバー】','キャラ / 名前 / @ID')}
-    ${S('members')?`<div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
+    ${S('members')?`<div class="note" style="margin:0 0 6px">ここに入力したメンバーは、参加者向けの「併せ」ページと進捗タブにも自動で反映されます</div>
+    <div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
     <button class="btn sec sm" onclick="addMem()">＋ メンバーを追加</button>`:''}
 
     ${sechHTML(e,'cameras','【カメラマン】')}
@@ -750,10 +769,6 @@ function renderInfo(){
     ${sechHTML(e,'assistants','【アシスタント】')}
     ${S('assistants')?`<div id="asList">${e.assistants.map((a,i)=>asRow(a,i)).join('')}</div>
     <button class="btn sec sm" onclick="addAs()">＋ アシスタントを追加</button>`:''}
-
-    ${sechHTML(e,'timetable','【当日タイムテーブル】')}
-    ${S('timetable')?`<div id="ttList">${e.timetable.map((t,i)=>ttRow(t,i)).join('')}</div>
-    <button class="btn sec sm" onclick="addTT()">＋ 行を追加</button>`:''}
 
     ${sechHTML(e,'hashtag','【ハッシュタグ】')}
     ${S('hashtag')?`<input type="text" value="${esc(e.hashtag)}" placeholder="例：#○○併せ" oninput="uf('hashtag',this.value)">`:''}
@@ -1124,22 +1139,41 @@ function renderProg(){
   </div>`:''}
 
   <div class="secttl">メンバー別 進捗（タップで切替）</div>
+  ${e.members.length? `<div class="note" style="margin:-2px 0 8px">自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
   ${e.members.length? e.members.map((m,i)=>{
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
+    const mine = !!m.claim && m.claim===clientId();
+    const canEdit = mine || (isOwner(e) && !m.claim);
     return `<div class="mcard">
-      <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span></div>
+      <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
+        ${mine? `<span class="mytag">自分の枠</span>`
+          : m.claim? `<span class="mytag other">本人管理</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
+          : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
+      </div>
       ${PROG_ITEMS.map(([k,lbl])=>`
         <div class="plabel">${lbl}</div>
         <div class="st3">${PROG_LABELS.map((pl,s)=>
-          `<button class="${m.prog[k]===s?'s'+s:''}" onclick="setProg(${i},'${k}',${s})">${pl}</button>`).join('')}
+          `<button class="${m.prog[k]===s?'s'+s:''}" ${canEdit?`onclick="setProg(${i},'${k}',${s})"`:'disabled'}>${pl}</button>`).join('')}
         </div>`).join('')}
+      <label class="fl">持ち物・持ち込み</label>
+      <input type="text" value="${esc(m.bring||'')}" placeholder="例：レフ板、お菓子の差し入れ" ${canEdit?`oninput="ev().members[${i}].bring=this.value;save()"`:'readonly'}>
       <label class="fl">メモ（購入予定・課題など）</label>
-      <input type="text" value="${esc(m.memo||'')}" placeholder="例：ウィッグカット残り" oninput="ev().members[${i}].memo=this.value;save()">
+      <input type="text" value="${esc(m.memo||'')}" placeholder="例：ウィッグカット残り" ${canEdit?`oninput="ev().members[${i}].memo=this.value;save()"`:'readonly'}>
     </div>`;
   }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「要項」タブでメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
 }
 function setProg(i,k,s){
   ev().members[i].prog[k]=s;
+  save(); renderTab();
+}
+function claimMem(i){
+  ev().members[i].claim = clientId();
+  save(); renderTab();
+  toast('自分の枠に設定しました');
+}
+function unclaimMem(i){
+  if(!confirm('この枠の本人設定を解除しますか？（本人が再度「自分の枠にする」を押せます）')) return;
+  delete ev().members[i].claim;
   save(); renderTab();
 }
 
@@ -1575,6 +1609,7 @@ function onRemote(id, branch, v){
     if(cur===id) renderTab();
     updateSavedBar();
   }
+  if(branch==='meta') tryJoinClaim(local);
 }
 function adoptRemote(local, v){
   if(v.meta) applyMeta(local, Object.assign({}, v.meta, {updatedAt: Math.max(v.meta.updatedAt||0, (local.updatedAt||0)+1)}));
@@ -1586,6 +1621,7 @@ function adoptRemote(local, v){
   store.set(state);
   if(cur===local.id) renderTab();
   updateSavedBar();
+  tryJoinClaim(local);
 }
 
 /* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
@@ -1622,6 +1658,46 @@ function disconnectEvent(id){
   }
 }
 
+/* ---- 個別招待リンク（メンバー枠との自動紐づけ） ----
+   主催が枠ごとの専用リンク(#join=room&m=ikey)を本人のXアカウントへDMで送る。
+   開いた端末は同期完了時にその枠を自動claimし、表示名も名簿から設定される。 */
+function joinClaimMap(){ try{ return JSON.parse(localStorage.getItem('awaseJoinClaim'))||{}; }catch(e){ return {}; } }
+function setJoinClaim(room, key){
+  const m = joinClaimMap();
+  if(key==null) delete m[room]; else m[room] = key;
+  try{ localStorage.setItem('awaseJoinClaim', JSON.stringify(m)); }catch(e){}
+}
+function tryJoinClaim(e){
+  if(!e || !e.sync || !e.sync.room) return;
+  const key = joinClaimMap()[e.sync.room];
+  if(!key) return;
+  const m = e.members.find(x=>x.ikey===key);
+  if(!m) return; // 名簿がまだ同期されていない（次のmeta受信で再試行）or 枠が削除済み
+  if(m.claim && m.claim!==clientId()){
+    setJoinClaim(e.sync.room, null);
+    toast('この招待リンクの枠は、すでに別の端末で使われています（主催にご確認ください）');
+    return;
+  }
+  const wasMine = m.claim===clientId();
+  m.claim = clientId();
+  if(m.name && !myName()) setMyName(m.name);
+  setJoinClaim(e.sync.room, null);
+  e.updatedAt = Date.now();
+  store.set(state);
+  pushBranch(e,'meta');
+  if(cur===e.id) renderTab();
+  if(!wasMine) toast(`「${m.chara||m.name||'メンバー'}」の枠で参加しました`);
+}
+function copyMemberInvite(i){
+  const e = ev();
+  const m = e.members[i];
+  if(!m) return;
+  if(!m.ikey){ m.ikey = uid(); save(); }
+  const url = inviteURL(e) + '&m=' + m.ikey;
+  const role = m.chara? `${m.chara}役` : 'メンバー';
+  copyText(`「${e.title||'併せ'}」に${role}でご招待します！\nこのリンクを開くだけで参加できます（あなた専用のリンクです）。\n${url}`);
+}
+
 /* ---- 招待（メンバー・カメラマン向け） ---- */
 function inviteURL(e){
   if(location.protocol.startsWith('http')){
@@ -1648,6 +1724,12 @@ function showInvite(){
     return;
   }
   const url = inviteURL(e);
+  /* メンバー別リンク用のキーを未発行の枠に発行 */
+  if(isOwner(e)){
+    let changed = false;
+    e.members.forEach(m=>{ if(!m.ikey){ m.ikey = uid(); changed = true; } });
+    if(changed) save();
+  }
   const shareText = url
     ? `「${e.title||'併せ'}」に招待します！\nこのリンクを開くだけで参加できます。\n${url}`
     : `「${e.title||'併せ'}」に招待します！\n併せPlannerを開いて「招待コードで参加する」にこのコードを入力してください。\n${e.sync.room}`;
@@ -1655,8 +1737,17 @@ function showInvite(){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>メンバーを招待</h3>
+      ${url && isOwner(e) && e.members.length? `
+      <div style="font-size:13.5px;font-weight:800">メンバー別の招待リンク</div>
+      <div class="note" style="margin:2px 0 8px">確定メンバー本人のXアカウントへDMで送ってください。開いた人は<b>その枠に自動で紐づき、名前の入力も不要</b>です。</div>
+      ${e.members.map((m,i)=>`<div class="row" style="margin:6px 0">
+        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}</span>
+        <button class="btn sec sm fix" onclick="copyMemberInvite(${i})">リンクをコピー</button>
+      </div>`).join('')}
+      <div style="font-size:13.5px;font-weight:800;margin-top:16px">共通の招待リンク</div>
+      <div class="note" style="margin:2px 0 8px">カメラマン・アシスタントなど、枠のない方はこちらを。</div>`:''}
       <div style="font-size:13.5px;line-height:1.8;margin-bottom:10px">
-        ${url? 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！'
+        ${url? (isOwner(e)&&e.members.length? '' : 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！')
              : 'この招待コードをLINEやDMで送ってください。'}
       </div>
       ${url? `<div style="background:var(--acbg);border-radius:10px;padding:10px;font-size:12px;word-break:break-all">${esc(url)}</div>`
@@ -1678,12 +1769,13 @@ function joinPrompt(){
   const code = prompt('招待コード（またはリンク）を貼り付けてください');
   if(code) joinByCode(code);
 }
-function joinByCode(code){
+function joinByCode(code, mkey){
   code = String(code||'').trim();
-  const m = code.match(/#join=([\w-]+)/);
-  if(m) code = m[1];
+  const m = code.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
+  if(m){ code = m[1]; if(!mkey) mkey = m[2]; }
   if(!code){ toast('コードが空です'); return; }
   if(!SYNC_CONFIG){ toast('共有サーバーが未設定のため参加できません'); return; }
+  if(mkey) setJoinClaim(code, mkey);
   let e = state.events.find(x=>x.sync && x.sync.room===code);
   if(!e){
     e = blankEvent();
@@ -1694,8 +1786,9 @@ function joinByCode(code){
   }
   openEvent(e.id,'info');
   toast('接続中…');
-  /* 招待された時点で表示名を紐づけ（初回のみ・以降のコメント/申請に自動で使われる） */
-  if(!myName()) ensureName();
+  tryJoinClaim(e);
+  /* 個別リンクなら名前は名簿から自動設定される。共通リンクのときだけ表示名を聞く */
+  if(!myName() && !mkey) ensureName();
 }
 
 /* ---- バックアップ ---- */
@@ -1765,11 +1858,11 @@ function importJSON(){
   });
   store.set(state);
 
-  // 招待リンク (#join=xxx) から開いた場合は自動参加、それ以外は要項ページを直接表示
-  const m = location.hash.match(/#join=([\w-]+)/);
+  // 招待リンク (#join=xxx / #join=xxx&m=枠キー) から開いた場合は自動参加、それ以外は要項ページを直接表示
+  const m = location.hash.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
   if(m && SYNC_CONFIG){
     history.replaceState(null,'',location.pathname+location.search);
-    joinByCode(m[1]);
+    joinByCode(m[1], m[2]);
   }else{
     openStart();
   }
