@@ -240,7 +240,11 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 }
 .doc input:focus,.doc textarea:focus{border-color:var(--tx);}
 .doc .row{align-items:flex-end;}
-.starh{font-size:13.5px; font-weight:700; color:var(--sub); margin:12px 0 2px;}
+.starh{
+  font-size:13.5px; font-weight:800; color:var(--tx);
+  background:var(--acbg); padding:6px 12px; border-radius:6px;
+  border-left:3px solid var(--tx); margin:14px 0 6px;
+}
 /* 入力済みの欄は色付きで表示 */
 .doc input.filled, .doc textarea.filled{
   border-bottom-color:#2e6fb0; color:#1c4d80;
@@ -871,10 +875,13 @@ function makeImages(){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>募集内容をスクショにする</h3>
-      <div class="note" style="margin:0 0 4px">要項の入力内容をそのまま1枚のスクショにしました。</div>
+      <div class="note" style="margin:0 0 4px">長くて読みづらい場合は分割できます。</div>
+      <div class="filterrow" id="splitRow">
+        ${[1,2,3,4].map(n=>`<button class="${splitParts===n?'on':''}" onclick="setSplit(${n})">${n===1?'1枚':n+'分割'}</button>`).join('')}
+      </div>
       <div id="dtlHost" style="text-align:center"></div>
       <button class="btn wide" onclick="downloadDetails()">スクショを写真に保存</button>
-      <div class="note">スマホでは共有メニューが開くので「画像を保存」を選ぶと写真アプリに入ります。パソコンではダウンロードされます。</div>
+      <div class="note">スマホでは共有メニューが開くので「画像を保存」を選ぶと写真アプリに入ります（分割時はまとめて保存されます）。パソコンではダウンロードされます。Xは1ポスト4枚まで添付できます。</div>
       <div class="secttl" style="margin-top:20px">募集ポスト文（X用）</div>
       <textarea id="twText" rows="8" style="font-size:13px" oninput="updateXCount()">${esc(tweetTemplate(e))}</textarea>
       <div class="note" id="xCount" style="margin-top:4px"></div>
@@ -948,15 +955,17 @@ function dataURLtoBlob(du){
   return new Blob([buf],{type:'image/png'});
 }
 async function downloadDetails(){
-  const img = document.querySelector('#dtlHost img.dtlcv');
-  if(!img){ toast('スクショがありません'); return; }
-  const name = safeName(ev().title)+'_bosyu.png';
-  const blob = dataURLtoBlob(img.src);
-  // スマホ（iOS/Android・Chrome/Safari）：共有シート経由で写真アプリに保存
+  const imgs = [...document.querySelectorAll('#dtlHost img.dtlcv')];
+  if(!imgs.length){ toast('スクショがありません'); return; }
+  const base = safeName(ev().title);
+  const files = imgs.map((img,i)=>{
+    const name = base + (imgs.length>1? `_bosyu${i+1}.png` : '_bosyu.png');
+    return new File([dataURLtoBlob(img.src)], name, {type:'image/png'});
+  });
+  // スマホ（iOS/Android・Chrome/Safari）：共有シート経由で写真アプリにまとめて保存
   try{
-    const file = new File([blob], name, {type:'image/png'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({files:[file]});
+    if(navigator.canShare && navigator.canShare({files})){
+      await navigator.share({files});
       return;
     }
   }catch(err){
@@ -964,15 +973,17 @@ async function downloadDetails(){
     /* 共有に失敗した場合はダウンロードにフォールバック */
   }
   try{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.download = name;
-    a.href = url;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 10000);
-    toast('保存しました');
+    files.forEach((f,i)=>setTimeout(()=>{
+      const url = URL.createObjectURL(f);
+      const a = document.createElement('a');
+      a.download = f.name;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 10000);
+    }, i*400));
+    toast(files.length>1? files.length+'枚を保存しました' : '保存しました');
   }catch(err){
     toast('保存できませんでした');
   }
@@ -1058,6 +1069,37 @@ function detailBlocks(e){
   return B;
 }
 
+let splitParts = 1;
+function setSplit(n){
+  splitParts = n;
+  renderDetailCanvases(ev());
+  document.querySelectorAll('#splitRow button').forEach((b,i)=>b.classList.toggle('on', i===n-1));
+}
+
+/* 行を指定数のページに等分割（見出しがページ末尾に残らないよう調整） */
+function paginateRows(rows, parts){
+  if(parts<=1) return [rows];
+  const total = rows.reduce((a,r)=>a+r.lh,0);
+  const target = total/parts;
+  const pages=[]; let cur=[]; let acc=0;
+  rows.forEach(r=>{
+    if(pages.length < parts-1 && cur.length && acc + r.lh/2 > target){
+      pages.push(cur); cur=[]; acc=0;
+    }
+    cur.push(r); acc += r.lh;
+  });
+  if(cur.length) pages.push(cur);
+  // ページ末尾の見出し・空行は次ページ先頭へ送る
+  for(let i=0;i<pages.length-1;i++){
+    while(pages[i].length && ['h1','h','star','sp'].includes(pages[i][pages[i].length-1].t)){
+      pages[i+1].unshift(pages[i].pop());
+    }
+  }
+  // ページ先頭の空行は削除
+  pages.forEach(p=>{ while(p.length && p[0].t==='sp') p.shift(); });
+  return pages.filter(p=>p.length);
+}
+
 function renderDetailCanvases(e){
   const host = document.getElementById('dtlHost');
   host.innerHTML='';
@@ -1065,15 +1107,14 @@ function renderDetailCanvases(e){
   const meas = document.createElement('canvas').getContext('2d');
 
   // 行リスト化（折り返し込み）
-  const rows=[]; let y=M+40;
+  const rows=[];
   const SZ = {h1:[50,84,800], h:[40,76,800], star:[36,70,700], b:[35,62,500], sp:[0,32,400]};
   detailBlocks(e).forEach(bk=>{
     const [size,lh,wt] = SZ[bk.t];
-    if(bk.t==='sp'){ rows.push({t:'sp', lh, y}); y+=lh; return; }
+    if(bk.t==='sp'){ rows.push({t:'sp', lh}); return; }
     meas.font = `${wt} ${size}px ${FNT}`;
     wrapText(meas, bk.text, W-M*2).forEach((l,i)=>{
-      rows.push({t:bk.t, text:l, size, lh, wt, cont:i>0, y});
-      y += lh;
+      rows.push({t:bk.t, text:l, size, lh, wt, cont:i>0});
     });
   });
 
@@ -1082,31 +1123,45 @@ function renderDetailCanvases(e){
     return;
   }
 
-  // 内容量に合わせた1枚の縦長画像
-  const H = Math.max(900, y + M);
-  const cv = document.createElement('canvas');
-  cv.width=W; cv.height=H;
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle='#ffffff';
-  ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle=LINEC; ctx.lineWidth=2;
-  ctx.strokeRect(28,28,W-56,H-56);
-  rows.forEach(r=>{
-    if(r.t==='sp') return;
-    ctx.font = `${r.wt} ${r.size}px ${FNT}`;
-    ctx.fillStyle = (r.t==='h1'||r.t==='h') ? INK : (r.t==='star'? SUBINK : '#3a3a3a');
-    ctx.fillText(r.text, M, r.y + r.size*0.55);
-    if(r.t==='h1' && !r.cont){
-      ctx.strokeStyle=INK; ctx.lineWidth=2.5;
-      ctx.beginPath(); ctx.moveTo(M, r.y+r.size*0.95); ctx.lineTo(M+ctx.measureText(r.text).width, r.y+r.size*0.95); ctx.stroke();
+  const pages = paginateRows(rows, splitParts);
+  // 全ページ同じ高さに揃える（Xで並べたときにきれい）
+  const maxContent = Math.max(...pages.map(p=>p.reduce((a,r)=>a+r.lh,0)));
+  const H = Math.max(900, maxContent + M + 40 + M + (pages.length>1?50:0));
+
+  pages.forEach((prows,pi)=>{
+    const cv = document.createElement('canvas');
+    cv.width=W; cv.height=H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle=LINEC; ctx.lineWidth=2;
+    ctx.strokeRect(28,28,W-56,H-56);
+    let y = M+40;
+    prows.forEach(r=>{
+      if(r.t==='sp'){ y+=r.lh; return; }
+      ctx.font = `${r.wt} ${r.size}px ${FNT}`;
+      ctx.fillStyle = (r.t==='h1'||r.t==='h') ? INK : (r.t==='star'? SUBINK : '#3a3a3a');
+      ctx.fillText(r.text, M, y + r.size*0.55);
+      if(r.t==='h1' && !r.cont){
+        ctx.strokeStyle=INK; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.moveTo(M, y+r.size*0.95); ctx.lineTo(M+ctx.measureText(r.text).width, y+r.size*0.95); ctx.stroke();
+      }
+      y += r.lh;
+    });
+    if(pages.length>1){
+      ctx.fillStyle='#b5b5b5';
+      ctx.font = `600 26px ${FNT}`;
+      ctx.textAlign='center';
+      ctx.fillText(`${pi+1} / ${pages.length}`, W/2, H-40);
+      ctx.textAlign='left';
     }
+    // 長押し保存（スマホ）が効くよう img 要素として表示
+    const img = document.createElement('img');
+    img.src = cv.toDataURL('image/png');
+    img.className = 'dtlcv';
+    img.alt = '募集内容'+(pages.length>1?` ${pi+1}/${pages.length}`:'');
+    host.appendChild(img);
   });
-  // 長押し保存（スマホ）が効くよう img 要素として表示
-  const img = document.createElement('img');
-  img.src = cv.toDataURL('image/png');
-  img.className = 'dtlcv';
-  img.alt = '募集内容';
-  host.appendChild(img);
 }
 
 /* toast */
