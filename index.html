@@ -325,7 +325,7 @@ function blankEvent(){
     condCommon:'', condLayer:'', condCamera:'', notes:'',
     recruits:[{chara:'', num:1}],
     members:[], cameras:[], assistants:[],
-    shots:[], pending:[], comments:{}, timetable:[],
+    shots:[], pending:[], comments:{}, roster:{}, timetable:[],
     sec:{},
     sync:{room: roomId()}
   };
@@ -514,6 +514,24 @@ function renderAwase(){
       tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
   }
   if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
+
+  /* 参加者一覧（主催のみ・退出操作つき） */
+  if(owner){
+    const ros = Object.entries(e.roster||{}).filter(([cid])=>cid!==clientId());
+    out += `<div class="sech">【参加者】</div>`;
+    if(!ros.length){
+      out += !syncReady()
+        ? `<div class="note" style="margin:0">共有サーバーの設定後、この併せに参加した端末がここに表示され、退出してもらう操作ができます。</div>`
+        : `<div class="note" style="margin:0">まだ参加者はいません（招待リンクから参加するとここに表示されます）。</div>`;
+    }else{
+      out += ros.map(([cid,r])=>`<div class="rop" style="display:flex;align-items:center;gap:8px">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)||'名前未設定'}</span>
+        ${r.ban? `<span class="mytag other">退出済み</span><button class="claimbtn" onclick="unkickMember('${esc(cid)}')">戻す</button>`
+               : `<button class="claimbtn" onclick="kickMember('${esc(cid)}')">退出してもらう</button>`}
+      </div>`).join('')
+      + `<div class="note" style="margin-top:4px">退出させると相手の端末からこの併せが消え、同じリンクでは再参加できなくなります。進捗の枠と個別リンクも作り直されます。</div>`;
+    }
+  }
 
   v.innerHTML = `
   <div class="doc">
@@ -1160,9 +1178,9 @@ function renderProg(){
           <span class="plbl">${lbl}</span><span class="pst">${PROG_LABELS[s]}</span></button>`;
       }).join('')}</div>
       <label class="fl">持ち物・持ち込み</label>
-      <textarea rows="2" placeholder="例：レフ板、お菓子の差し入れ" ${canEdit?`oninput="ev().members[${i}].bring=this.value;save()"`:'readonly'}>${esc(m.bring||'')}</textarea>
+      <textarea rows="2" maxlength="500" placeholder="例：レフ板、お菓子の差し入れ" ${canEdit?`oninput="ev().members[${i}].bring=this.value;save()"`:'readonly'}>${esc(m.bring||'')}</textarea>
       <label class="fl">メモ（購入予定・課題など）</label>
-      <textarea rows="2" placeholder="例：ウィッグカット残り" ${canEdit?`oninput="ev().members[${i}].memo=this.value;save()"`:'readonly'}>${esc(m.memo||'')}</textarea>
+      <textarea rows="2" maxlength="500" placeholder="例：ウィッグカット残り" ${canEdit?`oninput="ev().members[${i}].memo=this.value;save()"`:'readonly'}>${esc(m.memo||'')}</textarea>
     </div>`;
   }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「要項」タブでメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
 }
@@ -1192,6 +1210,8 @@ const PRIO_LABELS = ['指定なし','優先','絶対撮りたい'];
 const PRIO_BADGE = ['','優先','絶対'];
 const MAX_SHOTS = 30;
 const MAX_PENDING = 10;
+const MAX_COMMENT_LEN = 300;      // 通信量の安全装置（コメントは併せ単位で全員に配信されるため）
+const MAX_COMMENTS_PER_SHOT = 50;
 
 function shotComments(e,sid){
   if(!e.comments) e.comments = {};
@@ -1336,7 +1356,7 @@ function openShot(i){
 
       <label class="fl">メモ・キャプション（ポーズ指定など）</label>
       ${owner
-        ? `<textarea rows="3" placeholder="例：全員で円になる構図。センターは主催" oninput="ev().shots[${i}].cap=this.value;saveShots()">${esc(s.cap)}</textarea>`
+        ? `<textarea rows="3" maxlength="500" placeholder="例：全員で円になる構図。センターは主催" oninput="ev().shots[${i}].cap=this.value;saveShots()">${esc(s.cap)}</textarea>`
         : `<div style="font-size:13.5px;line-height:1.6;padding:4px 2px;border-bottom:1px solid var(--line);min-height:28px;white-space:pre-wrap">${esc(s.cap)||'<span style="color:var(--sub)">（なし）</span>'}</div>`}
 
       <label class="fl">コメント（撮りたい度・撮影の相談など）</label>
@@ -1345,7 +1365,7 @@ function openShot(i){
           : '<div class="note" style="margin:2px 0 6px">まだコメントはありません</div>'}
       </div>
       <div class="row" style="margin-top:6px">
-        <input type="text" id="cmtInput" placeholder="例：この角度は当日要相談" onkeydown="if(event.key==='Enter')addComment(${i})">
+        <input type="text" id="cmtInput" maxlength="${MAX_COMMENT_LEN}" placeholder="例：この角度は当日要相談" onkeydown="if(event.key==='Enter')addComment(${i})">
         <button class="btn sec sm fix" onclick="addComment(${i})">送信</button>
       </div>
 
@@ -1379,12 +1399,14 @@ function delShot(i){
 /* ---- コメント ---- */
 function addComment(i, pre){
   const inp = document.getElementById('cmtInput');
-  const text = ((pre!=null ? pre : (inp && inp.value)) || '').trim();
+  const text = ((pre!=null ? pre : (inp && inp.value)) || '').trim().slice(0, MAX_COMMENT_LEN);
   if(!text) return;
   if(!myName()){ ensureName(()=>addComment(i, text)); return; }
   const e = ev();
   const s = e.shots[i];
-  shotComments(e, s.id).push({id:uid(), name:myName(), text, at:Date.now()});
+  const cs = shotComments(e, s.id);
+  if(cs.length >= MAX_COMMENTS_PER_SHOT){ toast('この構図のコメントが上限に達しました'); return; }
+  cs.push({id:uid(), name:myName(), text, at:Date.now()});
   saveComments(); renderTab(); openShot(i);
 }
 
@@ -1477,7 +1499,8 @@ const SYNC_CONFIG = null;
 const IMG_API = null;
 /* ▲▲▲ ここまで ▲▲▲ */
 
-const BRANCHES = ['meta','shots','comments','pending'];
+const BRANCHES = ['meta','shots','comments','pending','roster']; // 受信対象
+const PUSH_BRANCHES = ['meta','shots','comments','pending'];      // 一括送信対象（rosterは端末ごとの個別書き込みのみ）
 const conns = {};        // eventId -> firebase ref (部屋のルート)
 const pushTimers = {};
 let fbLoaded = false;
@@ -1541,7 +1564,7 @@ function stripNulls(x){
 }
 function cleanMeta(e){
   const m = JSON.parse(JSON.stringify(e));
-  delete m.id; delete m.sync; delete m.shots; delete m.pending; delete m.comments;
+  delete m.id; delete m.sync; delete m.shots; delete m.pending; delete m.comments; delete m.roster;
   return m;
 }
 const SHOT_DEFAULTS = {img:null,timg:null,url:null,turl:null,cap:'',done:false,prio:0,by:'',byId:'',at:0};
@@ -1549,6 +1572,7 @@ function normShot(s){ return Object.assign({}, SHOT_DEFAULTS, s); }
 
 function branchPayload(e, branch){
   if(branch==='meta') return stripNulls(cleanMeta(e));
+  if(branch==='roster') return stripNulls(e.roster||{});
   if(branch==='comments'){
     const map = {};
     Object.keys(e.comments||{}).forEach(k=>{ const a=arrify(e.comments[k]); if(a.length) map[k]=a; });
@@ -1569,7 +1593,7 @@ function pushBranch(e, branch, now){
   if(now) doPush();
   else pushTimers[key] = setTimeout(doPush, 600);
 }
-function pushAll(e){ BRANCHES.forEach(b=>pushBranch(e, b, true)); }
+function pushAll(e){ PUSH_BRANCHES.forEach(b=>pushBranch(e, b, true)); }
 /* 旧APIとの互換: save()（要項の編集）からはmetaだけ流す */
 function schedulePush(e){ pushBranch(e, 'meta'); }
 
@@ -1588,9 +1612,14 @@ function onRemote(id, branch, v){
   const local = state.events.find(x=>x.id===id);
   if(!local) return;
   /* 自分の書き込みのエコーは無視（clientIdで判定） */
-  if(v && v.by === clientId() && branch!=='meta') return;
+  if(v && v.by === clientId() && branch!=='meta' && branch!=='roster') return;
   let changed = false;
-  if(branch==='meta'){
+  if(branch==='roster'){
+    const map = v || {};
+    const me = map[clientId()];
+    if(me && me.ban && !isOwner(local)){ leaveKicked(local); return; }
+    if(JSON.stringify(map) !== JSON.stringify(local.roster||{})){ local.roster = map; changed = true; }
+  }else if(branch==='meta'){
     changed = applyMeta(local, v);
   }else if(branch==='comments'){
     const map = {};
@@ -1613,6 +1642,7 @@ function adoptRemote(local, v){
   if(v.meta) applyMeta(local, Object.assign({}, v.meta, {updatedAt: Math.max(v.meta.updatedAt||0, (local.updatedAt||0)+1)}));
   local.shots = arrify(v.shots && v.shots.list).map(normShot);
   local.pending = arrify(v.pending && v.pending.list);
+  local.roster = (v.roster) || {};
   const map = {};
   Object.keys((v.comments && v.comments.map) || {}).forEach(k=>{ map[k] = arrify(v.comments.map[k]); });
   local.comments = map;
@@ -1620,6 +1650,60 @@ function adoptRemote(local, v){
   if(cur===local.id) renderTab();
   updateSavedBar();
   tryJoinClaim(local);
+}
+
+/* ---- 参加者名簿と退出（キック） ----
+   参加した端末は roster/{clientId} に自分の名前を登録する（端末ごとの個別書き込み・全体setはしない）。
+   主催が ban フラグを立てると、相手の端末では併せが削除され、同じリンクでは再参加できない。 */
+function registerRoster(e){
+  if(!syncReady() || !conns[e.id]) return;
+  const cid = clientId();
+  const cur0 = (e.roster||{})[cid];
+  if(cur0 && cur0.ban) return;
+  const nm = myName() || (isOwner(e)? '主催' : '');
+  if(cur0 && cur0.name===nm) return;
+  const entry = {name:nm, at:(cur0 && cur0.at)||Date.now()};
+  if(isOwner(e)) entry.own = true;
+  try{ conns[e.id].child('roster/'+cid).set(entry); }catch(err){}
+}
+function leaveKicked(e){
+  disconnectEvent(e.id);
+  state.events = state.events.filter(x=>x.id!==e.id);
+  store.set(state);
+  updateSavedBar();
+  toast('主催の操作により、この併せから退出となりました');
+  if(cur===e.id){ cur=null; openStart(); }
+}
+function kickMember(cid){
+  const e = ev();
+  if(!e || !isOwner(e)) return;
+  const r = (e.roster||{})[cid];
+  if(!confirm(`${(r && r.name)||'この参加者'} さんに退出してもらいますか？\n相手の端末からこの併せが消え、同じリンクでは再参加できません。進捗の枠も解放されます。`)) return;
+  let metaChanged = false;
+  e.members.forEach(m=>{
+    if(m.claim===cid){
+      delete m.claim;
+      if(m.ikey) m.ikey = uid(); // 古い個別リンクを無効化（再招待時は新リンクをコピー）
+      metaChanged = true;
+    }
+  });
+  if(!e.roster) e.roster = {};
+  if(!e.roster[cid]) e.roster[cid] = {name:'', at:Date.now()};
+  e.roster[cid].ban = true;
+  store.set(state);
+  if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid).set(stripNulls(e.roster[cid])); }catch(err){} }
+  if(metaChanged){ e.updatedAt = Date.now(); pushBranch(e,'meta'); }
+  renderTab();
+  toast('退出処理を行いました');
+}
+function unkickMember(cid){
+  const e = ev();
+  if(!e || !isOwner(e) || !e.roster || !e.roster[cid]) return;
+  delete e.roster[cid].ban;
+  store.set(state);
+  if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid+'/ban').set(null); }catch(err){} }
+  renderTab();
+  toast('再参加できるようにしました');
 }
 
 /* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
@@ -1635,6 +1719,9 @@ async function connectEvent(e){
     const v = snap.val();
     const local = state.events.find(x=>x.id===e.id);
     if(!local){ delete conns[e.id]; return; }
+    /* 退出済み端末は接続せず、ローカルからも削除する */
+    const rme = v && v.roster && v.roster[clientId()];
+    if(rme && rme.ban && !isOwner(local)){ leaveKicked(local); return; }
     const remoteAt = (v && v.meta && v.meta.updatedAt) || 0;
     if(!v){
       if(hasContent(local) && isOwner(local)) pushAll(local);
@@ -1646,6 +1733,7 @@ async function connectEvent(e){
     BRANCHES.forEach(b=>{
       base.child(b).on('value', s=>onRemote(e.id, b, s.val()), err=>console.warn('sync error:', err));
     });
+    registerRoster(local);
   }).catch(err=>{ console.warn('sync error:', err); });
 }
 function disconnectEvent(id){
@@ -1843,6 +1931,7 @@ function importJSON(){
     if(!e.sec) e.sec={};
     if(!e.pending) e.pending=[];
     if(!e.comments || typeof e.comments!=='object') e.comments={};
+    if(!e.roster || typeof e.roster!=='object') e.roster={};
     ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText'].forEach(k=>{ if(e[k]==null) e[k]=''; });
     if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
     if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
