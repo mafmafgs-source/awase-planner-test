@@ -232,6 +232,12 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   background:#f3f8fd; border-radius:6px 6px 0 0;
 }
 .dtlcv{width:100%; max-width:400px; border:1px solid var(--line); border-radius:6px; margin:10px auto 4px; display:block;}
+/* 併せページ（表示専用） */
+.rotitle{font-size:22px; font-weight:800; border-bottom:2px solid var(--tx); padding:4px 2px 8px;}
+.rointro{font-size:14.5px; padding:8px 2px 0; line-height:1.7;}
+.ro{font-size:14px; line-height:1.75; padding:2px 2px 0;}
+.rop{padding:3px 0; border-bottom:1px dashed var(--line);}
+.rop .tw{color:var(--sub); font-size:12px;}
 </style>
 </head>
 <body>
@@ -434,7 +440,7 @@ function renderTabs(){
     return;
   }
   const tabs = [
-    ['info','要項'],['prog','進捗'],['shots','構図']
+    ['info', isOwner(ev())?'要項':'併せ'],['prog','進捗'],['shots','構図']
   ];
   bar.innerHTML = tabs.map(([k,l])=>
     `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}</button>`).join('');
@@ -443,11 +449,55 @@ function renderTab(){
   const e = ev();
   if(!e){ openStart(); return; }
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
-  if(LITE){ renderInfo(); refreshFilled(); return; }
-  if(curTab==='info') renderInfo();
+  if(LITE){ (isOwner(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
+  if(curTab==='info') (isOwner(e)? renderInfo() : renderAwase());
   else if(curTab==='prog') renderProg();
   else if(curTab==='shots') renderShots();
   refreshFilled();
+}
+
+/* ---- 併せページ（招待者向け・確定情報の表示専用） ----
+   募集条件・募集キャラなど募集フェーズの項目は載せない。項目ON/OFF(sec)に従う */
+function renderAwase(){
+  const e = ev();
+  const v = document.getElementById('view');
+  const S = k => secOn(e,k);
+  const line = s => esc(s).replace(/\n/g,'<br>');
+  const sect = (label, html) => `<div class="sech">${label}</div><div class="ro">${html}</div>`;
+  const person = p => `<div class="rop">${p.chara?esc(p.chara)+'：':''}${esc(p.name)||'（名前未定）'} <span class="tw">${p.tw?esc(at(p.tw)):''}</span></div>`;
+  let out = '';
+  out += sect('【日程】', isFixed(e)
+    ? `${esc(dateDisp(e))}<div class="cdown" data-cd="${e.date}" style="margin-top:6px">${cdText(e.date)}</div>`
+    : esc(dateDisp(e)));
+  if(S('place') && (e.place||e.studio||e.station||e.placeUrl)){
+    out += sect('【場所】',
+      [e.place&&esc(e.place), e.studio&&esc(e.studio), e.station&&('最寄駅：'+esc(e.station))].filter(Boolean).join('<br>')
+      + (e.placeUrl?`<div style="margin-top:6px"><button class="btn sec sm" onclick="openPlaceUrl()">スタジオ/イベントのページを開く</button></div>`:''));
+  }
+  if(e.costume) out += sect('【衣装】', line(e.costume));
+  if(S('fee') && (e.feeLayer||e.feeCamera)){
+    out += sect('【参加費】',
+      (e.feeLayer?`<div class="starh" style="margin-top:0">レイヤー</div>${line(e.feeLayer)}`:'')
+      + (e.feeCamera?`<div class="starh">カメラマン・アシスタント</div>${line(e.feeCamera)}`:''));
+  }
+  if(S('notes') && e.notes) out += sect('【その他注意事項】', line(e.notes));
+  if(S('members') && e.members.length) out += sect('【確定メンバー】', e.members.map(person).join(''));
+  if(S('cameras') && e.cameras.length) out += sect('【カメラマン】', e.cameras.map(person).join(''));
+  if(S('assistants') && e.assistants.length) out += sect('【アシスタント】', e.assistants.map(person).join(''));
+  const tt = e.timetable.filter(t=>t.time||t.label);
+  if(S('timetable') && tt.length) out += sect('【当日タイムテーブル】',
+    tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
+  if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
+
+  v.innerHTML = `
+  <div class="doc">
+    <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
+    ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
+    ${out}
+    ${!hasContent(e)?`<div class="note" style="margin-top:14px">主催の端末と同期されると、ここに確定情報が表示されます。</div>`:''}
+    <div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>
+  </div>
+  <button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`;
 }
 
 /* ---- 入力済みの可視化 ---- */
@@ -473,7 +523,10 @@ function newEvent(){
   openEvent(e.id,'info');
 }
 function deleteEvent(){
-  if(!confirm('この併せを削除しますか？（元に戻せません）')) return;
+  const msg = isOwner(ev())
+    ? 'この併せを削除しますか？（元に戻せません）'
+    : 'この併せをこの端末から削除しますか？（招待リンクからまた参加できます）';
+  if(!confirm(msg)) return;
   disconnectEvent(cur);
   state.events = state.events.filter(x=>x.id!==cur);
   store.set(state);
