@@ -1151,6 +1151,7 @@ function renderProg(){
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
         ${mine? `<span class="mytag">自分の枠</span>`
           : m.claim? `<span class="mytag other">本人管理</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
+          : m.ikey? `<span class="mytag other">リンク招待中</span>`
           : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
       </div>
       <div class="st3 prog3">${PROG_ITEMS.map(([k,lbl])=>{
@@ -1720,13 +1721,8 @@ function showInvite(){
     </div>`;
     return;
   }
+  /* 枠キー(ikey)は「リンクをコピー」した時点で発行される（＝その枠は手動claim不可にロック） */
   const url = inviteURL(e);
-  /* メンバー別リンク用のキーを未発行の枠に発行 */
-  if(isOwner(e)){
-    let changed = false;
-    e.members.forEach(m=>{ if(!m.ikey){ m.ikey = uid(); changed = true; } });
-    if(changed) save();
-  }
   const shareText = url
     ? `「${e.title||'併せ'}」に招待します！\nこのリンクを開くだけで参加できます。\n${url}`
     : `「${e.title||'併せ'}」に招待します！\n併せPlannerを開いて「招待コードで参加する」にこのコードを入力してください。\n${e.sync.room}`;
