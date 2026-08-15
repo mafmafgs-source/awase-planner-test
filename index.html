@@ -138,6 +138,8 @@ input[readonly]{color:var(--sub);}
 }
 .shot img{width:100%; height:100%; object-fit:cover; display:block; transition:filter .25s,opacity .25s;}
 .shot.done img{filter:grayscale(1) brightness(.65); opacity:.7;}
+.shot.p1{border:2px solid var(--sub);}
+.shot.p2{border:3px solid var(--tx);}
 .shot .ck{
   position:absolute; inset:0; display:none; align-items:center; justify-content:center;
 }
@@ -1181,7 +1183,7 @@ function toast(msg){
 }
 /* ============ 進捗・カウントダウン & 構図共有 ============ */
 
-const PROG_LABELS = ['未着手','準備中','完成'];
+const PROG_LABELS = ['これから','準備中','できた！'];
 const PROG_ITEMS = [['ish','衣装'],['wig','ウィッグ'],['item','小物']];
 
 function renderProg(){
@@ -1204,9 +1206,10 @@ function renderProg(){
   </div>
 
   <div class="card">
-    <h3>全体の準備進捗</h3>
+    <h3>みんなの準備</h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
-    <div style="font-size:12.5px;color:var(--sub);text-align:right">${done} / ${total} 完成（${pct}%）</div>
+    <div style="font-size:12.5px;color:var(--sub);text-align:right">できた ${done} / ${total}（${pct}%）</div>
+    ${total && pct===100 ? `<div style="text-align:center;font-weight:800;font-size:14px;margin-top:8px">準備完了！あとは当日を楽しむだけ</div>`:''}
   </div>
 
   ${tt.length?`<div class="card"><h3>当日タイムテーブル</h3>
@@ -1214,8 +1217,8 @@ function renderProg(){
       <b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join('')}
   </div>`:''}
 
-  <div class="secttl">メンバー別 進捗</div>
-  ${e.members.length? `<div class="note" style="margin:-2px 0 8px">ボタンをタップするごとに 未着手 → 準備中 → 完成 と切り替わります。自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
+  <div class="secttl">メンバーごとの準備</div>
+  ${e.members.length? `<div class="note" style="margin:-2px 0 8px">ボタンをタップするごとに これから → 準備中 → できた！ と切り替わります。自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
   ${e.members.length? e.members.map((m,i)=>{
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
     const mine = !!m.claim && m.claim===clientId();
@@ -1223,7 +1226,7 @@ function renderProg(){
     return `<div class="mcard">
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
         ${mine? `<span class="mytag">自分の枠</span>`
-          : m.claim? `<span class="mytag other">本人管理</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
+          : m.claim? `<span class="mytag other">本人が更新中</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
           : m.ikey? `<span class="mytag other">リンク招待中</span>`
           : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
       </div>
@@ -1298,15 +1301,15 @@ function renderShots(){
 
   v.innerHTML = `
   ${pend.length? `<div class="card">
-    <h3>追加申請 <span class="cnt">${pend.length}件</span></h3>
-    ${owner? '<div class="note" style="margin:0 0 8px">メンバーからの構図の追加申請です。承認すると一覧に追加されます。</div>':''}
+    <h3>構図リクエスト <span class="cnt">${pend.length}件</span></h3>
+    ${owner? '<div class="note" style="margin:0 0 8px">メンバーが撮りたい構図のリクエストです。確認して一覧に追加しましょう。</div>':''}
     ${pend.map((p,i)=>`
       <div class="pend" onclick="openPending(${i})">
         <img src="${gridSrc(p)}" alt="">
         <div class="pbody">
           <div class="who">${esc(p.by)||'名前未設定'}<span class="when">${shortTime(p.at)}</span></div>
           <div class="cap2">${esc(p.cap)||'（コメントなし）'}</div>
-          <div class="st">${owner?'タップして承認 / 却下':'承認待ち'}</div>
+          <div class="st">${owner?'タップして確認':'主催の確認待ち'}</div>
         </div>
       </div>`).join('')}
   </div>`:''}
@@ -1314,15 +1317,16 @@ function renderShots(){
   <div class="card">
     <h3>撮りたい構図 <span class="cnt">${e.shots.length}/${MAX_SHOTS}枚</span></h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
-    <div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:10px">撮影済み ${done} / ${e.shots.length}（${pct}%）</div>
+    <div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:10px">撮れた ${done} / ${e.shots.length}（${pct}%）</div>
+    ${e.shots.length && done===e.shots.length ? `<div style="text-align:center;font-weight:800;font-size:14px;margin-bottom:8px">全部撮れた！おつかれさまでした</div>`:''}
     <div class="shotgrid">
       ${list.map(({s,i})=>{
         const nc = (e.comments && e.comments[s.id] || []).length;
-        return `<div class="shot ${s.done?'done':''}" onclick="openShot(${i})">
+        return `<div class="shot ${s.done?'done':''} ${s.prio?'p'+s.prio:''}" onclick="openShot(${i})">
           <img src="${gridSrc(s)}" alt="">
           <span class="num">${i+1}</span>
           ${s.prio? `<span class="prio p${s.prio}">${PRIO_BADGE[s.prio]}</span>`:''}
-          <span class="ck"><span>済</span></span>
+          <span class="ck"><span>撮れた！</span></span>
           ${s.cap?`<span class="cap">${esc(s.cap)}</span>`:''}
           ${nc? `<span class="cc">コメント${nc}</span>`:''}
         </div>`;
@@ -1332,9 +1336,9 @@ function renderShots(){
     <input type="file" id="shotFile" accept="image/*" multiple class="hidden" onchange="addShots(this.files)">
     ${owner
       ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を追加（複数可）</button>
-         <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮影が終わった構図はタップして「撮影済みにする」でグレーアウトします。</div>`
-      : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を申請する</button>
-         <div class="note">申請した画像は主催の承認後に一覧へ追加されます。構図へのコメントと撮影済みチェックは誰でもできます。</div>`}
+         <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮れた構図はタップして「撮れた！」でチェックしていきましょう。</div>`
+      : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 撮りたい構図をリクエスト</button>
+         <div class="note">リクエストした構図は主催のOKで一覧に追加されます。コメントと「撮れた！」チェックは誰でもできます。</div>`}
   </div>`;
 }
 
@@ -1370,7 +1374,7 @@ async function addShotArr(arr, owner){
   }
   if(owner) saveShots(); else savePending();
   renderTab();
-  toast(failed? `${added}枚追加・${failed}枚失敗しました` : (owner?'追加しました':'申請しました。主催の承認をお待ちください'));
+  toast(failed? `${added}枚追加・${failed}枚失敗しました` : (owner?'追加しました':'リクエストしました！主催が確認します'));
 }
 function compressImage(file, max, q){
   return new Promise((res,rej)=>{
@@ -1425,7 +1429,7 @@ function openShot(i){
       </div>
 
       <button class="btn wide" style="${s.done?'background:var(--sub);border-color:var(--sub)':''}" onclick="toggleShot(${i})">
-        ${s.done? '未撮影に戻す' : '撮影済みにする'}</button>
+        ${s.done? 'まだだった…に戻す' : '撮れた！'}</button>
       ${owner?`<button class="btn ghost wide" onclick="delShot(${i})">この構図を削除</button>`:''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
@@ -1433,8 +1437,13 @@ function openShot(i){
 }
 function closeModal(){ document.getElementById('modalHost').innerHTML=''; }
 function setPrio(i,p){
-  ev().shots[i].prio = p;
-  saveShots(); openShot(i);
+  const e = ev();
+  const s = e.shots[i];
+  s.prio = p;
+  /* 優先度順（絶対→優先→無印）に自動並べ替え。同じ優先度内は元の順番を維持（stable sort） */
+  e.shots.sort((a,b)=>(b.prio||0)-(a.prio||0));
+  saveShots(); renderTab();
+  openShot(e.shots.indexOf(s));
 }
 function toggleShot(i){
   const s = ev().shots[i];
@@ -1475,14 +1484,14 @@ function openPending(i){
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>追加申請<span class="opt2">申請：${esc(p.by)||'名前未設定'} ${shortTime(p.at)}</span></h3>
+      <h3>構図リクエスト<span class="opt2">${esc(p.by)||'名前未設定'} ${shortTime(p.at)}</span></h3>
       <img class="prev" src="${fullSrc(p)}">
       ${p.cap?`<div style="font-size:13.5px;margin-bottom:8px">${esc(p.cap)}</div>`:''}
       ${owner
-        ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="approvePending(${i})">承認して一覧に追加</button>
-           <button class="btn ghost wide" onclick="rejectPending(${i})">却下する</button>`
-        : (mine? `<button class="btn ghost wide" onclick="rejectPending(${i})">申請を取り消す</button>`
-               : `<div class="note">主催の承認待ちです</div>`)}
+        ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="approvePending(${i})">一覧に追加する</button>
+           <button class="btn ghost wide" onclick="rejectPending(${i})">今回は見送る</button>`
+        : (mine? `<button class="btn ghost wide" onclick="rejectPending(${i})">リクエストを取り消す</button>`
+               : `<div class="note">主催の確認待ちです</div>`)}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
@@ -1500,7 +1509,7 @@ function rejectPending(i){
   const e = ev();
   const p = e.pending[i];
   if(!p) return;
-  if(!confirm('この申請を削除しますか？')) return;
+  if(!confirm('このリクエストを削除しますか？')) return;
   e.pending.splice(i,1);
   if(p.url) deleteShotImage(e.sync.room, p.id);
   savePending(); closeModal(); renderTab();
@@ -1856,7 +1865,7 @@ function showInvite(){
         <h3>メンバーを招待</h3>
         <div style="font-size:13.5px;line-height:1.8">
           このアプリはまだ<b>共有サーバーが設定されていない</b>ため、いまはこの端末の中だけで動いています。<br><br>
-          共有サーバーを設定すると、メンバーは<b>リンクを開くだけ</b>で同じデータに繋がり、構図の共有・コメント・撮影済みチェックがリアルタイムで全員に反映されます（LINEのような使い心地になります）。<br><br>
+          共有サーバーを設定すると、メンバーは<b>リンクを開くだけ</b>で同じデータに繋がり、構図の共有・コメント・「撮れた！」チェックがリアルタイムで全員に反映されます（LINEのような使い心地になります）。<br><br>
           設定は配布元（主催者向けガイド）をご覧ください。
         </div>
         <button class="btn sec wide" onclick="closeModal()">閉じる</button>
