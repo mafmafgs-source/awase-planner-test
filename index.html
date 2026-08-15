@@ -472,8 +472,8 @@ function renderTabs(){
   /* 招待者に要項タブはない。'info'のままなら併せタブへ寄せる */
   if(curTab==='info' && !isOwner(ev())) curTab='awase';
   const tabs = isOwner(ev())
-    ? [['info','要項'],['awase','併せ'],['prog','進捗'],['shots','構図']]
-    : [['awase','併せ'],['prog','進捗'],['shots','構図']];
+    ? [['info','要項'],['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']]
+    : [['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']];
   bar.innerHTML = tabs.map(([k,l])=>
     `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}</button>`).join('');
 }
@@ -487,6 +487,7 @@ function renderTab(){
   else if(curTab==='awase') renderAwase();
   else if(curTab==='prog') renderProg();
   else if(curTab==='shots') renderShots();
+  else if(curTab==='items') renderMyList();
   refreshFilled();
 }
 
@@ -1215,8 +1216,6 @@ function renderProg(){
     ${e.station?`<div class="sub" style="margin-top:6px">最寄駅：${esc(e.station)}</div>`:''}
   </div>
 
-  ${myChecklistHTML()}
-
   <div class="card">
     <h3>みんなの準備</h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
@@ -1260,42 +1259,68 @@ function cycleProg(i,k){
   save(); renderTab();
 }
 
-/* ---- じぶんの忘れ物チェック ----
+/* ---- じぶんの忘れ物チェック（専用タブ） ----
    完全に個人のメモ。localStorageのみ（同期に載せない・他の人には見えない・費用ゼロ） */
 let myEdit = false;
-let myPreOpen = false;
 const MY_PRESETS = ['衣装一式','ウィッグ','カラコン','靴','小物・武器','メイク道具','安全ピン','両面テープ','充電器・モバイルバッテリー','カメラ','現金','身分証'];
 function myItems(){ try{ return JSON.parse(localStorage.getItem('awaseMyItems'))||[]; }catch(e){ return []; } }
 function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} }
-function myChecklistHTML(){
+function renderMyList(){
+  const v = document.getElementById('view');
   const items = myItems();
   const done = items.filter(x=>x.done).length;
-  return `<div class="card">
+  const pct = items.length? Math.round(done/items.length*100) : 0;
+  v.innerHTML = `
+  <div class="card">
     <h3>じぶんの忘れ物チェック <span class="cnt">自分の端末だけのメモ</span></h3>
-    ${items.length?`<div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:6px">チェック ${done} / ${items.length}</div>`:''}
-    ${items.length && done===items.length? `<div style="text-align:center;font-weight:800;font-size:14px;margin-bottom:8px">忘れ物なし！いってらっしゃい</div>`:''}
+    <div class="filterrow">
+      <button class="${!myEdit?'on':''}" onclick="myEdit=false;renderTab()">チェックモード</button>
+      <button class="${myEdit?'on':''}" onclick="myEdit=true;renderTab()">編集モード</button>
+    </div>
+    ${items.length?`<div class="pbar"><div style="width:${pct}%"></div></div>
+    <div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:6px">チェック ${done} / ${items.length}</div>`:''}
+    ${items.length && done===items.length && !myEdit? `<div style="text-align:center;font-weight:800;font-size:14px;margin-bottom:8px">忘れ物なし！いってらっしゃい</div>`:''}
     <div class="mychips">
       ${items.map((it,i)=>`<button class="mychip ${it.done&&!myEdit?'on':''} ${myEdit?'del':''}" onclick="${myEdit?`delMyItem(${i})`:`toggleMyItem(${i})`}">${myEdit?'✕ ':(it.done?'✓ ':'')}${esc(it.text)}</button>`).join('')}
     </div>
-    ${!items.length?`<div class="note" style="margin:4px 0 8px">持ち物をタイルで登録して、出発前にタップでチェック。この一覧は自分の端末にだけ保存され、他の人には見えません。</div>`:''}
-    <div class="row" style="margin-top:10px">
+    ${!items.length?`<div class="note" style="margin:4px 0 8px">編集モードで持ち物をタイル登録して、出発前にタップでチェック。この一覧は自分の端末にだけ保存され、他の人には見えません。どの併せを開いても同じリストが使えます。</div>`:''}
+    ${!myEdit && items.length? `<button class="btn ghost wide" onclick="resetMyItems()" style="margin-top:12px">チェックを全部はずす（次の併せ用にリセット）</button>`:''}
+  </div>
+
+  ${myEdit? `<div class="card">
+    <h3>持ち物を追加</h3>
+    <div class="row">
       <input type="text" id="myItemInput" maxlength="30" placeholder="例：カラコン" onkeydown="if(event.key==='Enter')addMyItem()">
       <button class="btn sec sm fix" onclick="addMyItem()">追加</button>
     </div>
-    <details ${myPreOpen?'open':''} ontoggle="myPreOpen=this.open" style="margin-top:6px">
-      <summary style="font-size:12px;color:var(--sub);font-weight:600;cursor:pointer">定番の持ち物から選ぶ</summary>
-      <div class="mychips" style="margin-top:8px">
-        ${MY_PRESETS.map(t=>{
-          const has = items.some(x=>x.text===t);
-          return `<button class="mychip ${has?'on':''}" onclick="addMyPreset('${t}')">${has?'✓ ':''}${t}</button>`;
-        }).join('')}
-      </div>
-    </details>
-    ${items.length?`<div class="row" style="margin-top:10px">
-      <button class="btn ghost sm" onclick="resetMyItems()">チェックを全部はずす</button>
-      <button class="btn ghost sm" onclick="myEdit=!myEdit;renderTab()">${myEdit?'編集おわり':'タイルを削除する'}</button>
-    </div>`:''}
-  </div>`;
+    <div class="secttl" style="margin-top:16px">定番の持ち物（タップで入れる／はずす）</div>
+    <div class="mychips">
+      ${MY_PRESETS.map(t=>{
+        const has = items.some(x=>x.text===t);
+        return `<button class="mychip ${has?'on':''}" onclick="addMyPreset('${t}')">${has?'✓ ':''}${t}</button>`;
+      }).join('')}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" onclick="addAllPresets()">定番を全部入れる</button>
+      <button class="btn ghost sm" onclick="removeAllPresets()">定番を全部はずす</button>
+    </div>
+    <button class="btn ghost wide" onclick="clearMyItems()" style="margin-top:14px">リストを空にする</button>
+  </div>`:''}`;
+}
+function addAllPresets(){
+  const items = myItems();
+  MY_PRESETS.forEach(t=>{ if(!items.some(x=>x.text===t)) items.push({id:uid(), text:t, done:false}); });
+  setMyItems(items); renderTab();
+}
+function removeAllPresets(){
+  setMyItems(myItems().filter(x=>!MY_PRESETS.includes(x.text)));
+  renderTab();
+}
+function clearMyItems(){
+  if(!confirm('登録した持ち物をすべて削除しますか？')) return;
+  setMyItems([]);
+  myEdit = false;
+  renderTab();
 }
 function addMyItem(){
   const el = document.getElementById('myItemInput');
