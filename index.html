@@ -271,7 +271,7 @@ details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.
   border:none; border-radius:0; padding:8px 2px; font-size:14.5px; color:var(--tx);
   background:none; width:100%; margin-top:6px;
 }
-.sech{font-size:15px; font-weight:800; margin:22px 0 6px; display:flex; align-items:center; gap:8px;}
+.sech{font-size:17.5px; font-weight:800; margin:24px 0 6px; display:flex; align-items:center; gap:8px;}
 .sech .opt{font-size:11px; color:var(--sub); font-weight:600;}
 .sech.soff{color:var(--no);}
 .tgl{
@@ -382,7 +382,8 @@ function blankEvent(){
     feeLayer:'', feeCamera:'',
     hashtag:'',
     condCommon:'', condLayer:'', condCamera:'', notes:'',
-    recruits:[{chara:'', num:1}],
+    recruits:[{chara:''}],
+    recCam:'', recAs:'',              // カメラマン・アシスタントの募集枠人数
     members:[], cameras:[], assistants:[],
     shots:[], pending:[], comments:{}, roster:{}, timetable:[],
     bg:null, bgUrl:null, bgId:null,  // カウントダウン背景（bg=端末内dataURL・bgUrl=R2）
@@ -820,9 +821,20 @@ function renderInfo(){
     <input type="text" value="${esc(e.feeCamera)}" placeholder="例：スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください" oninput="uf('feeCamera',this.value)">
     ${presetHTML(e,'feeCamera')}`:''}
 
-    <div class="sech">【募集キャラ・人数】</div>
+    <div class="sech">【募集メンバー】</div>
     <div id="recList">${e.recruits.map((r,i)=>recRow(r,i)).join('')}</div>
     <button class="btn sec sm" onclick="addRec()">＋ 追加</button>
+    <div class="starh">カメラマン・アシスタント枠</div>
+    <div class="row" style="margin-bottom:6px">
+      <span class="fix" style="font-size:13.5px">カメラマン</span>
+      <input type="number" class="fix" style="width:70px" min="0" value="${esc(e.recCam)}" oninput="uf('recCam',this.value)">
+      <span class="fix" style="color:var(--sub);font-size:12px">名（0=募集しない）</span>
+    </div>
+    <div class="row">
+      <span class="fix" style="font-size:13.5px">アシスタント</span>
+      <input type="number" class="fix" style="width:70px" min="0" value="${esc(e.recAs)}" oninput="uf('recAs',this.value)">
+      <span class="fix" style="color:var(--sub);font-size:12px">名（0=募集しない）</span>
+    </div>
 
     <div class="sech">【募集条件】<span class="opt">1行に1つずつ</span></div>
     <div class="note" style="margin:0 0 6px">※募集する身ではありますがトラブル防止の為、参加条件をもうけさせていただきます<br><span style="font-size:11px">↑この一文はスクショに自動で入ります</span></div>
@@ -919,12 +931,10 @@ function setDateType(t){
 function recRow(r,i){
   return `<div class="row" style="margin-bottom:8px">
     <input type="text" value="${esc(r.chara)}" placeholder="キャラ名・枠名" oninput="ev().recruits[${i}].chara=this.value;save()">
-    <input type="number" class="fix" style="width:70px" min="1" value="${esc(r.num)}" oninput="ev().recruits[${i}].num=this.value;save()">
-    <span class="fix" style="color:var(--sub);font-size:12px">名</span>
     <button class="del" onclick="ev().recruits.splice(${i},1);save();renderTab()">✕</button>
   </div>`;
 }
-function addRec(){ ev().recruits.push({chara:'',num:1}); save(); renderTab(); }
+function addRec(){ ev().recruits.push({chara:''}); save(); renderTab(); }
 
 function memRow(m,i){
   return `<div class="row" style="margin-bottom:8px">
@@ -1132,37 +1142,44 @@ const SUBINK = '#6e6e6e';
 const LINEC = '#dcdcdc';
 
 /* ---- 募集内容 → テキスト画像 ---- */
+/* 行の種類（スクショの階層ルール）:
+   h1 = タイトル(50px) / h = 大項目見出し【…】(40px) / kv = ラベル【…】+値の1行(ラベル36px太字+値35px)
+   star = 中項目(36px) / b = 本文(35px) / sp = 空行 */
 function detailBlocks(e){
   const B=[];
   const S = k => secOn(e,k);
   const lines = s => String(s||'').split('\n').map(x=>x.trim()).filter(Boolean);
+  const kv = (label,value) => B.push({t:'kv', label, text:String(value||'')});
   if(e.title) B.push({t:'h1', text:e.title});
   if(e.intro){ B.push({t:'sp'}); lines(e.intro).forEach(l=>B.push({t:'b', text:l})); }
   B.push({t:'sp'});
-  if(e.host) B.push({t:'b', text:`【主催】${e.host}${e.hostTw?`（${at(e.hostTw)}）`:''}`});
-  if(e.content) B.push({t:'b', text:`【作品】${e.content}`});
-  B.push({t:'b', text:`【日程】${dateDisp(e)}`});
+  if(e.host) kv('【主催】', `${e.host}${e.hostTw?`（${at(e.hostTw)}）`:''}`);
+  if(e.content) kv('【作品】', e.content);
+  kv('【日程】', dateDisp(e));
   if(S('place')){
-    if(e.place||e.studio) B.push({t:'b', text:`【場所】${e.place||''}${e.studio?`（${e.studio}）`:''}`});
-    if(e.placeUrl) B.push({t:'b', text:`【URL】${e.placeUrl}`});
-    if(e.station) B.push({t:'b', text:`【最寄駅】${e.station}`});
+    if(e.place||e.studio) kv('【場所】', `${e.place||''}${e.studio?`（${e.studio}）`:''}`);
+    if(e.placeUrl) kv('【URL】', e.placeUrl);
+    if(e.station) kv('【最寄駅】', e.station);
   }
-  if(e.costume) B.push({t:'b', text:`【衣装】${e.costume}`});
+  if(e.costume) kv('【衣装】', e.costume);
   if(S('fee') && (e.feeLayer||e.feeCamera)){
     if(e.feeLayer && !e.feeCamera){
-      B.push({t:'b', text:`【参加費】${e.feeLayer}`});
+      kv('【参加費】', e.feeLayer);
     }else if(e.feeCamera && !e.feeLayer){
-      B.push({t:'b', text:`【参加費】カメラマン：${e.feeCamera}`});
+      kv('【参加費】', `カメラマン・アシスタント：${e.feeCamera}`);
     }else{
-      B.push({t:'b', text:'【参加費】'});
+      B.push({t:'h', text:'【参加費】'});
       B.push({t:'b', text:`・レイヤー：${e.feeLayer}`});
-      B.push({t:'b', text:`・カメラマン：${e.feeCamera}`});
+      B.push({t:'b', text:`・カメラマン・アシスタント：${e.feeCamera}`});
     }
   }
   const recs = e.recruits.filter(r=>r.chara);
-  if(recs.length){
-    B.push({t:'sp'}, {t:'h', text:'【募集】'});
-    recs.forEach(r=>B.push({t:'b', text:`・${r.chara}（${r.num||1}名）`}));
+  const rc = parseInt(e.recCam,10)||0, ra = parseInt(e.recAs,10)||0;
+  if(recs.length || rc || ra){
+    B.push({t:'sp'}, {t:'h', text:'【募集メンバー】'});
+    recs.forEach(r=>B.push({t:'b', text:`・${r.chara}`}));
+    if(rc) B.push({t:'b', text:`・カメラマン（${rc}名）`});
+    if(ra) B.push({t:'b', text:`・アシスタント（${ra}名）`});
   }
   const conds = [['☆参加者共通',e.condCommon],['☆レイヤー',e.condLayer],['☆カメラマン・アシスタント',e.condCamera]].filter(c=>c[1]&&c[1].trim());
   if(conds.length){
@@ -1183,14 +1200,20 @@ function detailBlocks(e){
   const mems = S('members')? e.members.filter(m=>m.chara||m.name) : [];
   if(mems.length){
     B.push({t:'h', text:'【確定メンバー】'});
-    mems.forEach(m=>B.push({t:'b', text:`・${m.chara||'？'}/${m.name||''}${m.tw?`（${at(m.tw)}）`:''}`}));
+    mems.forEach(m=>B.push({t:'b', text:`・${m.chara||'？'}／${m.name||''}${m.tw?`（${at(m.tw)}）`:''}`}));
   }
   const cams = S('cameras')? e.cameras.filter(c=>c.name||c.tw) : [];
-  cams.forEach(c=>B.push({t:'b', text:`・カメラマン/${c.name||''}${c.tw?`（${at(c.tw)}）`:''}`}));
+  if(cams.length){
+    B.push({t:'h', text:'【カメラマン】'});
+    cams.forEach(c=>B.push({t:'b', text:`・${c.name||''}${c.tw?`（${at(c.tw)}）`:''}`}));
+  }
   const asts = S('assistants')? (e.assistants||[]).filter(a=>a.name||a.tw) : [];
-  asts.forEach(a=>B.push({t:'b', text:`・アシスタント/${a.name||''}${a.tw?`（${at(a.tw)}）`:''}`}));
-  // 締め
-  B.push({t:'sp'}, {t:'b', text:'ご応募・お問い合わせはDMまでお願いします。'});
+  if(asts.length){
+    B.push({t:'h', text:'【アシスタント】'});
+    asts.forEach(a=>B.push({t:'b', text:`・${a.name||''}${a.tw?`（${at(a.tw)}）`:''}`}));
+  }
+  // 締め（ポスト文と表記を統一）
+  B.push({t:'sp'}, {t:'b', text:'ご応募・ご質問はDMまでお願いします。'});
   if(S('hashtag') && e.hashtag) B.push({t:'b', text:e.hashtag});
   return B;
 }
@@ -1234,10 +1257,29 @@ function renderDetailCanvases(e){
 
   // 行リスト化（折り返し込み）
   const rows=[];
-  const SZ = {h1:[50,84,800], h:[40,76,800], star:[36,70,700], b:[35,62,500], sp:[0,32,400]};
+  const SZ = {h1:[50,84,800], h:[40,76,800], kv:[36,66,700], star:[36,70,700], b:[35,62,500], sp:[0,32,400]};
   detailBlocks(e).forEach(bk=>{
     const [size,lh,wt] = SZ[bk.t];
     if(bk.t==='sp'){ rows.push({t:'sp', lh}); return; }
+    if(bk.t==='kv'){
+      // ラベル（太字）＋値。1行目は値をラベルの右に、折り返しは左端から本文サイズで
+      meas.font = `700 36px ${FNT}`;
+      const lx = meas.measureText(bk.label).width + 10;
+      meas.font = `500 35px ${FNT}`;
+      const firstW = W-M*2-lx, restW = W-M*2;
+      const ls=[]; let line=''; let max=firstW;
+      for(const ch of String(bk.text)){
+        if(ch==='\n'){ ls.push(line); line=''; max=restW; continue; }
+        if(meas.measureText(line+ch).width > max){ ls.push(line); line=ch; max=restW; }
+        else line += ch;
+      }
+      ls.push(line);
+      ls.forEach((l,i)=>{
+        if(i===0) rows.push({t:'kv', label:bk.label, text:l, size, lh, wt, lx, cont:false});
+        else if(l) rows.push({t:'b', text:l, size:35, lh:62, wt:500, cont:true});
+      });
+      return;
+    }
     meas.font = `${wt} ${size}px ${FNT}`;
     wrapText(meas, bk.text, W-M*2).forEach((l,i)=>{
       rows.push({t:bk.t, text:l, size, lh, wt, cont:i>0});
@@ -1265,6 +1307,16 @@ function renderDetailCanvases(e){
     let y = M+40;
     prows.forEach(r=>{
       if(r.t==='sp'){ y+=r.lh; return; }
+      if(r.t==='kv'){
+        ctx.font = `700 36px ${FNT}`;
+        ctx.fillStyle = INK;
+        ctx.fillText(r.label, M, y + 36*0.55);
+        ctx.font = `500 35px ${FNT}`;
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillText(r.text, M + r.lx, y + 36*0.55);
+        y += r.lh;
+        return;
+      }
       ctx.font = `${r.wt} ${r.size}px ${FNT}`;
       ctx.fillStyle = (r.t==='h1'||r.t==='h') ? INK : (r.t==='star'? SUBINK : '#3a3a3a');
       ctx.fillText(r.text, M, y + r.size*0.55);
@@ -2266,7 +2318,7 @@ function importJSON(){
     if(!e.pending) e.pending=[];
     if(!e.comments || typeof e.comments!=='object') e.comments={};
     if(!e.roster || typeof e.roster!=='object') e.roster={};
-    ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText'].forEach(k=>{ if(e[k]==null) e[k]=''; });
+    ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText','recCam','recAs'].forEach(k=>{ if(e[k]==null) e[k]=''; });
     if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
     if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
     e.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
