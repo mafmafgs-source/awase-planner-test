@@ -69,6 +69,11 @@ textarea{resize:vertical;}
   flex:0 0 auto; background:none; border:none; color:#b5b5b5; font-size:17px;
   cursor:pointer; padding:4px;
 }
+.rowbtn{
+  flex:0 0 auto; background:var(--card); border:1px solid var(--line); color:var(--sub);
+  font-size:10.5px; font-weight:700; border-radius:5px; padding:5px 8px;
+  cursor:pointer; font-family:inherit;
+}
 .tabs{
   position:fixed; bottom:0; left:0; right:0; max-width:640px; margin:0 auto;
   background:var(--card); border-top:1px solid var(--line); display:flex; z-index:50;
@@ -157,6 +162,27 @@ input[readonly]{color:var(--sub);}
 .cdbig .lbl{font-size:12px; color:var(--sub); font-weight:700; letter-spacing:.15em;}
 .cdbig .num{font-size:40px; font-weight:800; line-height:1.25;}
 .cdbig .sub{font-size:12.5px; color:var(--sub); margin-top:2px;}
+/* カウントダウンの背景画像 */
+.cdbig{position:relative;}
+.cdbig.hasbg{
+  background-size:cover; background-position:center;
+  overflow:hidden; color:#fff;
+}
+.cdbig.hasbg::before{content:''; position:absolute; inset:0; background:rgba(0,0,0,.44);}
+.cdbig.hasbg>*{position:relative;}
+.cdbig.hasbg .lbl, .cdbig.hasbg .sub{color:rgba(255,255,255,.92);}
+.cdbig .bgbtns{position:absolute; top:8px; right:8px; display:flex; gap:5px;}
+.cdbig .bgbtns button{
+  font-size:10px; font-weight:700; padding:3px 9px; border-radius:99px;
+  border:1px solid var(--line); background:rgba(255,255,255,.85); color:var(--sub);
+  cursor:pointer; font-family:inherit;
+}
+.cdbig.hasbg .bgbtns button{
+  border-color:rgba(255,255,255,.5); background:rgba(0,0,0,.35); color:#fff;
+}
+/* 併せ一覧カードの背景 */
+.evcard.hasbg{background-size:cover; background-position:center;}
+.evcard.hasbg .inner{background:rgba(255,255,255,.8);}
 /* shots */
 .shotgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
 .shot{
@@ -359,6 +385,7 @@ function blankEvent(){
     recruits:[{chara:'', num:1}],
     members:[], cameras:[], assistants:[],
     shots:[], pending:[], comments:{}, roster:{}, timetable:[],
+    bg:null, bgUrl:null, bgId:null,  // カウントダウン背景（bg=端末内dataURL・bgUrl=R2）
     sec:{},
     sync:{room: roomId()}
   };
@@ -421,7 +448,8 @@ function showList(){
     <div class="box">
       <h3>保存された併せ</h3>
       ${saved.length? saved.map(e=>{
-        return `<div class="evcard" onclick="closeModal();openEvent('${e.id}')" style="${e.id===cur?'border-color:var(--tx)':''}">
+        const bg = e.bgUrl || e.bg;
+        return `<div class="evcard ${bg?'hasbg':''}" onclick="closeModal();openEvent('${e.id}')" style="${bg?`background-image:url('${bg}');`:''}${e.id===cur?'border-color:var(--tx)':''}">
           <div class="inner">
             <div class="ttl">${esc(e.title)||'（無題の併せ）'}${e.id===cur?'<span style="font-size:11px;color:var(--sub);font-weight:400">　表示中</span>':''}</div>
             <div class="meta">${esc(e.content)||''}${e.content?' ｜ ':''}${esc(dateDisp(e))}</div>
@@ -751,7 +779,7 @@ function renderInfo(){
     <div class="sech">【主催】</div>
     <div class="row">
       <input type="text" value="${esc(e.host)}" placeholder="名前" oninput="uf('host',this.value)">
-      <input type="text" value="${esc(e.hostTw)}" placeholder="@ID" oninput="uf('hostTw',this.value)">
+      <input type="text" value="${esc(e.hostTw)}" placeholder="@ID（プロフィールURL貼り付けOK）" oninput="twHostInput(this)">
     </div>
 
     <div class="sech">【作品】</div>
@@ -835,6 +863,53 @@ function renderInfo(){
 }
 
 function uf(k,val){ ev()[k]=val; save(); }
+
+/* ---- @IDの自動抽出 ----
+   XのプロフィールURLや「名前 @id」形式のテキストを貼るだけで@ID（と名前）を自動入力 */
+const TW_RESERVED = ['home','search','explore','i','intent','share','hashtag','messages','notifications','settings','login','signup'];
+function extractTw(raw){
+  raw = String(raw||'');
+  let m = raw.match(/screen_name=([A-Za-z0-9_]{1,15})/);
+  if(m) return '@'+m[1];
+  m = raw.match(/(?:x|twitter)\.com\/(?:#!\/)?@?([A-Za-z0-9_]{1,15})/i);
+  if(m && !TW_RESERVED.includes(m[1].toLowerCase())) return '@'+m[1];
+  m = raw.match(/@([A-Za-z0-9_]{1,15})/);
+  if(m) return '@'+m[1];
+  return null;
+}
+function extractPasteName(raw){
+  let s = String(raw||'');
+  const cuts = [s.indexOf('@'), s.search(/https?:\/\//), s.search(/(?:x|twitter)\.com/i)].filter(i=>i>=0);
+  if(cuts.length) s = s.slice(0, Math.min(...cuts));
+  s = s.replace(/[\n\r,、/｜|]+/g,' ').trim();
+  return (s && s.length<=20) ? s : null;
+}
+function twInput(el, kind, i){
+  const raw = el.value;
+  const tw = extractTw(raw);
+  const arr = ev()[kind];
+  if(!arr || !arr[i]) return;
+  if(tw && tw !== raw.trim()){
+    el.value = tw;
+    const nm = extractPasteName(raw);
+    if(nm && !arr[i].name){
+      arr[i].name = nm;
+      const row = el.closest('.row');
+      const nameInp = row && row.querySelector('input[placeholder="名前"], input[placeholder="お名前"]');
+      if(nameInp){ nameInp.value = nm; markFilled(nameInp); }
+      toast('名前と@IDを自動入力しました');
+    }else{
+      toast('@IDを自動入力しました');
+    }
+  }
+  arr[i].tw = el.value;
+  save();
+}
+function twHostInput(el){
+  const tw = extractTw(el.value);
+  if(tw && tw !== el.value.trim()){ el.value = tw; toast('@IDを自動入力しました'); }
+  uf('hostTw', el.value);
+}
 function setDateType(t){
   ev().dateType = t;
   save();
@@ -855,9 +930,28 @@ function memRow(m,i){
   return `<div class="row" style="margin-bottom:8px">
     <input type="text" value="${esc(m.chara)}" placeholder="キャラ" oninput="ev().members[${i}].chara=this.value;save()">
     <input type="text" value="${esc(m.name)}" placeholder="名前" oninput="ev().members[${i}].name=this.value;save()">
-    <input type="text" value="${esc(m.tw)}" placeholder="@ID" oninput="ev().members[${i}].tw=this.value;save()">
-    <button class="del" onclick="ev().members.splice(${i},1);save();renderTab()">✕</button>
+    <input type="text" value="${esc(m.tw)}" placeholder="@ID" oninput="twInput(this,'members',${i})">
+    <button class="del" onclick="delPerson('members',${i})">✕</button>
+    <button class="rowbtn" onclick="copyPerson('members',${i})">コピー</button>
   </div>`;
+}
+/* 行を1列テキストでコピー（例: アリス もうふ @moufu） */
+function copyPerson(kind,i){
+  const p = ev()[kind][i];
+  if(!p) return;
+  const t = [p.chara, p.name, p.tw? at(p.tw):''].filter(s=>s && String(s).trim()).join(' ');
+  if(!t){ toast('コピーする内容がありません'); return; }
+  copyText(t);
+}
+/* 行の削除（誤タップ防止の確認つき） */
+function delPerson(kind,i){
+  const arr = ev()[kind];
+  const p = arr[i];
+  if(!p) return;
+  const nm = [p.chara, p.name, p.tw].filter(Boolean).join(' ');
+  if(!confirm(`${nm||'この行'} を削除しますか？`)) return;
+  arr.splice(i,1);
+  save(); renderTab();
 }
 function addMem(){
   ev().members.push({chara:'',name:'',tw:'',prog:{ish:0,wig:0,item:0},memo:''});
@@ -866,8 +960,9 @@ function addMem(){
 function camRow(c,i){
   return `<div class="row" style="margin-bottom:8px">
     <input type="text" value="${esc(c.name)}" placeholder="お名前" oninput="ev().cameras[${i}].name=this.value;save()">
-    <input type="text" value="${esc(c.tw)}" placeholder="@ID" oninput="ev().cameras[${i}].tw=this.value;save()">
-    <button class="del" onclick="ev().cameras.splice(${i},1);save();renderTab()">✕</button>
+    <input type="text" value="${esc(c.tw)}" placeholder="@ID" oninput="twInput(this,'cameras',${i})">
+    <button class="del" onclick="delPerson('cameras',${i})">✕</button>
+    <button class="rowbtn" onclick="copyPerson('cameras',${i})">コピー</button>
   </div>`;
 }
 function addCam(){ ev().cameras.push({name:'',tw:''}); save(); renderTab(); }
@@ -875,8 +970,9 @@ function addCam(){ ev().cameras.push({name:'',tw:''}); save(); renderTab(); }
 function asRow(a,i){
   return `<div class="row" style="margin-bottom:8px">
     <input type="text" value="${esc(a.name)}" placeholder="お名前" oninput="ev().assistants[${i}].name=this.value;save()">
-    <input type="text" value="${esc(a.tw)}" placeholder="@ID" oninput="ev().assistants[${i}].tw=this.value;save()">
-    <button class="del" onclick="ev().assistants.splice(${i},1);save();renderTab()">✕</button>
+    <input type="text" value="${esc(a.tw)}" placeholder="@ID" oninput="twInput(this,'assistants',${i})">
+    <button class="del" onclick="delPerson('assistants',${i})">✕</button>
+    <button class="rowbtn" onclick="copyPerson('assistants',${i})">コピー</button>
   </div>`;
 }
 function addAs(){ ev().assistants.push({name:'',tw:''}); save(); renderTab(); }
@@ -1223,14 +1319,21 @@ function renderProg(){
 
   const tt = e.timetable.filter(t=>t.time||t.label);
   const fixed = isFixed(e);
+  const bg = e.bgUrl || e.bg;
+  const owner = isOwner(e);
   v.innerHTML = `
-  <div class="cdbig">
+  <div class="cdbig ${bg?'hasbg':''}" ${bg?`style="background-image:url('${bg}')"`:''}>
     <div class="lbl">${fixed?'撮影日まで':'日程'}</div>
     ${fixed
       ? `<div class="num" data-cd="${e.date}">${cdText(e.date)}</div>`
       : `<div class="num" style="font-size:26px;padding:6px 0">${esc(dateDisp(e))}</div>`}
     <div class="sub">${fixed?esc(dateDisp(e)):''}${e.place?`${fixed?' ／ ':''}${esc(e.place)}`:''}</div>
     ${e.station?`<div class="sub" style="margin-top:6px">最寄駅：${esc(e.station)}</div>`:''}
+    ${owner?`<input type="file" id="bgFile" accept="image/*" class="hidden" onchange="setBgImage(this.files)">
+    <div class="bgbtns">
+      <button onclick="document.getElementById('bgFile').click()">${bg?'変更':'背景を設定'}</button>
+      ${bg?`<button onclick="delBgImage()">削除</button>`:''}
+    </div>`:''}
   </div>
 
   <div class="card">
@@ -1374,6 +1477,37 @@ function resetMyItems(){
   items.forEach(x=>x.done=false);
   setMyItems(items); renderTab();
 }
+/* ---- カウントダウン背景画像（主催のみ設定・全形式→1000px JPEGに圧縮） ---- */
+async function setBgImage(files){
+  const f = files && files[0];
+  if(!f) return;
+  const e = ev();
+  try{
+    toast('画像を読み込み中…');
+    const full = await compressImage(f, 1000, .72);
+    if(syncReady() && imgApiReady()){
+      const id = 'bg' + uid();
+      const thumb = await compressImage(f, 300, .6);
+      const up = await uploadShotImage(e.sync.room, id, full, thumb);
+      if(e.bgId) deleteShotImage(e.sync.room, e.bgId);
+      e.bgId = id; e.bgUrl = up.url; e.bg = null;
+    }else{
+      e.bg = full; // 端末内保存。同期には載せない（cleanMetaで除外）
+    }
+    e.updatedAt = Date.now();
+    save(); renderTab();
+    toast('背景を設定しました');
+  }catch(err){ console.warn(err); toast('画像の読み込みに失敗しました'); }
+}
+function delBgImage(){
+  const e = ev();
+  if(e.bgId) deleteShotImage(e.sync.room, e.bgId);
+  e.bg = null; e.bgUrl = null; e.bgId = null;
+  e.updatedAt = Date.now();
+  save(); renderTab();
+  toast('背景を削除しました');
+}
+
 function claimMem(i){
   ev().members[i].claim = clientId();
   save(); renderTab();
@@ -1756,6 +1890,7 @@ function stripNulls(x){
 function cleanMeta(e){
   const m = JSON.parse(JSON.stringify(e));
   delete m.id; delete m.sync; delete m.shots; delete m.pending; delete m.comments; delete m.roster;
+  delete m.bg; // 背景のdataURLはRTDBに載せない（R2のbgUrlのみ同期）
   return m;
 }
 const SHOT_DEFAULTS = {img:null,timg:null,url:null,turl:null,cap:'',done:false,prio:0,by:'',byId:'',at:0};
@@ -1792,6 +1927,7 @@ function applyMeta(local, v){
   if(!v || !(v.updatedAt > (local.updatedAt||0))) return false;
   const base = cleanMeta(blankEvent());
   Object.keys(base).forEach(k=>{
+    if(k==='bg') return; // 端末内の背景dataURLはリモートで消さない
     local[k] = (v[k]!==undefined) ? v[k] : base[k];
   });
   ['recruits','members','cameras','assistants','timetable'].forEach(k=>{ local[k] = arrify(local[k]); });
@@ -2030,10 +2166,17 @@ function showInvite(){
   </div>`;
 }
 function copyText(t){
-  try{ navigator.clipboard.writeText(t); }catch(err){
-    const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy'); ta.remove();
-  }
+  const fallback = ()=>{
+    try{
+      const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove();
+    }catch(err){}
+  };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).catch(fallback); // 権限拒否時もフォールバックでコピー
+    }else fallback();
+  }catch(err){ fallback(); }
   toast('コピーしました');
   closeModal();
 }
