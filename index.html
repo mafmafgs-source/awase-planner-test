@@ -115,6 +115,16 @@ textarea{resize:vertical;}
   cursor:pointer; font-family:inherit; vertical-align:2px;
 }
 .st3 button:disabled{opacity:.5; cursor:default;}
+/* じぶんの忘れ物チェック */
+.mychips{display:flex; flex-wrap:wrap; gap:8px;}
+.mychip{
+  border:1px solid var(--line); border-radius:8px; padding:8px 14px;
+  font-size:13.5px; font-weight:600; background:var(--card); color:var(--tx);
+  cursor:pointer; font-family:inherit;
+}
+.mychip.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+.mychip.del{border-style:dashed; color:var(--sub);}
+.mychip:active{opacity:.7;}
 .st3.prog3{margin-top:10px;}
 .st3.prog3 button{padding:7px 2px;}
 .st3.prog3 .plbl{display:block; font-size:13px; font-weight:800;}
@@ -1205,6 +1215,8 @@ function renderProg(){
     ${e.station?`<div class="sub" style="margin-top:6px">最寄駅：${esc(e.station)}</div>`:''}
   </div>
 
+  ${myChecklistHTML()}
+
   <div class="card">
     <h3>みんなの準備</h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
@@ -1246,6 +1258,79 @@ function cycleProg(i,k){
   const m = ev().members[i];
   m.prog[k] = (m.prog[k]+1)%3;
   save(); renderTab();
+}
+
+/* ---- じぶんの忘れ物チェック ----
+   完全に個人のメモ。localStorageのみ（同期に載せない・他の人には見えない・費用ゼロ） */
+let myEdit = false;
+let myPreOpen = false;
+const MY_PRESETS = ['衣装一式','ウィッグ','カラコン','靴','小物・武器','メイク道具','安全ピン','両面テープ','充電器・モバイルバッテリー','カメラ','現金','身分証'];
+function myItems(){ try{ return JSON.parse(localStorage.getItem('awaseMyItems'))||[]; }catch(e){ return []; } }
+function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} }
+function myChecklistHTML(){
+  const items = myItems();
+  const done = items.filter(x=>x.done).length;
+  return `<div class="card">
+    <h3>じぶんの忘れ物チェック <span class="cnt">自分の端末だけのメモ</span></h3>
+    ${items.length?`<div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:6px">チェック ${done} / ${items.length}</div>`:''}
+    ${items.length && done===items.length? `<div style="text-align:center;font-weight:800;font-size:14px;margin-bottom:8px">忘れ物なし！いってらっしゃい</div>`:''}
+    <div class="mychips">
+      ${items.map((it,i)=>`<button class="mychip ${it.done&&!myEdit?'on':''} ${myEdit?'del':''}" onclick="${myEdit?`delMyItem(${i})`:`toggleMyItem(${i})`}">${myEdit?'✕ ':(it.done?'✓ ':'')}${esc(it.text)}</button>`).join('')}
+    </div>
+    ${!items.length?`<div class="note" style="margin:4px 0 8px">持ち物をタイルで登録して、出発前にタップでチェック。この一覧は自分の端末にだけ保存され、他の人には見えません。</div>`:''}
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="myItemInput" maxlength="30" placeholder="例：カラコン" onkeydown="if(event.key==='Enter')addMyItem()">
+      <button class="btn sec sm fix" onclick="addMyItem()">追加</button>
+    </div>
+    <details ${myPreOpen?'open':''} ontoggle="myPreOpen=this.open" style="margin-top:6px">
+      <summary style="font-size:12px;color:var(--sub);font-weight:600;cursor:pointer">定番の持ち物から選ぶ</summary>
+      <div class="mychips" style="margin-top:8px">
+        ${MY_PRESETS.map(t=>{
+          const has = items.some(x=>x.text===t);
+          return `<button class="mychip ${has?'on':''}" onclick="addMyPreset('${t}')">${has?'✓ ':''}${t}</button>`;
+        }).join('')}
+      </div>
+    </details>
+    ${items.length?`<div class="row" style="margin-top:10px">
+      <button class="btn ghost sm" onclick="resetMyItems()">チェックを全部はずす</button>
+      <button class="btn ghost sm" onclick="myEdit=!myEdit;renderTab()">${myEdit?'編集おわり':'タイルを削除する'}</button>
+    </div>`:''}
+  </div>`;
+}
+function addMyItem(){
+  const el = document.getElementById('myItemInput');
+  const t = (el && el.value || '').trim().slice(0,30);
+  if(!t) return;
+  const items = myItems();
+  if(items.length>=100){ toast('登録は100個までです'); return; }
+  items.push({id:uid(), text:t, done:false});
+  setMyItems(items); renderTab();
+  setTimeout(()=>{ const el2=document.getElementById('myItemInput'); if(el2) el2.focus(); }, 50);
+}
+function addMyPreset(t){
+  const items = myItems();
+  const i = items.findIndex(x=>x.text===t);
+  if(i>=0) items.splice(i,1);
+  else items.push({id:uid(), text:t, done:false});
+  setMyItems(items); renderTab();
+}
+function toggleMyItem(i){
+  const items = myItems();
+  if(!items[i]) return;
+  items[i].done = !items[i].done;
+  setMyItems(items); renderTab();
+}
+function delMyItem(i){
+  const items = myItems();
+  items.splice(i,1);
+  setMyItems(items);
+  if(!items.length) myEdit = false;
+  renderTab();
+}
+function resetMyItems(){
+  const items = myItems();
+  items.forEach(x=>x.done=false);
+  setMyItems(items); renderTab();
 }
 function claimMem(i){
   ev().members[i].claim = clientId();
