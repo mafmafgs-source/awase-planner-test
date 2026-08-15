@@ -381,7 +381,7 @@ function blankEvent(){
     place:'', studio:'', placeUrl:'', station:'', costume:'',
     feeLayer:'', feeCamera:'',
     hashtag:'',
-    condCommon:'', condLayer:'', condCamera:'', notes:'',
+    condCommon:'', condLayer:'', condCamera:'', notes:'', message:'',
     recruits:[{chara:''}],
     recCam:'', recAs:'',              // カメラマン・アシスタントの募集枠人数
     members:[], cameras:[], assistants:[],
@@ -868,6 +868,9 @@ function renderInfo(){
     ${sechHTML(e,'hashtag','【ハッシュタグ】')}
     ${S('hashtag')?`<input type="text" value="${esc(e.hashtag)}" placeholder="例：#○○併せ" oninput="uf('hashtag',this.value)">`:''}
 
+    <div class="sech">意気込み・ごあいさつなど自由に<span class="opt">スクショの最後に載ります（空欄なら載りません）</span></div>
+    <textarea rows="5" maxlength="1000" placeholder="例：はじめまして！この作品が大好きで、思い出に残る楽しい併せにしたいと思っています。初めての方も大歓迎です。よろしくお願いします！" oninput="uf('message',this.value)">${esc(e.message)}</textarea>
+
     <button class="btn wide" onclick="makeImages()" style="margin-top:26px">この募集内容をスクショにする</button>
   </div>
 
@@ -1211,6 +1214,15 @@ function detailBlocks(e){
   if(asts.length){
     B.push({t:'h', text:'【アシスタント】'});
     asts.forEach(a=>B.push({t:'b', text:`・${a.name||''}${a.tw?`（${at(a.tw)}）`:''}`}));
+  }
+  // 意気込み・ごあいさつ（見出しなしで自然に流す・長文可・段落の空行も残す）
+  if(e.message && e.message.trim()){
+    B.push({t:'sp'});
+    String(e.message).split('\n').forEach(l=>{
+      l = l.trim();
+      if(l) B.push({t:'b', text:l});
+      else B.push({t:'sp'});
+    });
   }
   // 締め（ポスト文と表記を統一）
   B.push({t:'sp'}, {t:'b', text:'ご応募・ご質問はDMまでお願いします。'});
@@ -2318,7 +2330,7 @@ function importJSON(){
     if(!e.pending) e.pending=[];
     if(!e.comments || typeof e.comments!=='object') e.comments={};
     if(!e.roster || typeof e.roster!=='object') e.roster={};
-    ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText','recCam','recAs'].forEach(k=>{ if(e[k]==null) e[k]=''; });
+    ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText','recCam','recAs','message'].forEach(k=>{ if(e[k]==null) e[k]=''; });
     if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
     if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
     e.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
