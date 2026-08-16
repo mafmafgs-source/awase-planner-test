@@ -1474,7 +1474,8 @@ const AFF_ITEMS = [
   {cat:'コスメ', name:'ヒロインメイク ロングマスカラ', note:'落ちにくさ重視の現場向き', q:'ヒロインメイク マスカラ', rakuten:''}
 ];
 function affHTML(){
-  if(!AFF_TAG) return '';
+  /* AFF_TAG未設定でもガワは表示（プレビュー）。リンクにタグが付かないだけで収益は発生しない */
+  const tagged = !!AFF_TAG;
   const cats = [['差し入れ','差し入れの定番'],['コスメ','プチプラコスメの定番']];
   const cards = cats.map(([cat,title])=>{
     const items = AFF_ITEMS.filter(x=>x.cat===cat);
@@ -1489,7 +1490,7 @@ function affHTML(){
           <div class="affnote">${esc(it.note)}</div>
         </div>
         <div class="affbtns">
-          <a class="affbtn" href="https://www.amazon.co.jp/s?k=${encodeURIComponent(it.q)}&tag=${encodeURIComponent(AFF_TAG)}" target="_blank" rel="sponsored noopener">Amazon</a>
+          <a class="affbtn" href="https://www.amazon.co.jp/s?k=${encodeURIComponent(it.q)}${tagged?`&tag=${encodeURIComponent(AFF_TAG)}`:''}" target="_blank" rel="sponsored noopener">Amazon</a>
           ${it.rakuten?`<a class="affbtn rkt" href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>`:''}
           <button class="affbtn add" onclick="addAffToList(${gi})">リストに入れる</button>
         </div>
@@ -1497,7 +1498,9 @@ function affHTML(){
       }).join('')}
     </div>`;
   }).join('');
-  return cards + `<div class="note" style="margin:2px 2px 10px">Amazonのアソシエイトとして、当サイト運営者は適格販売により収入を得ています。</div>`;
+  return cards + (tagged
+    ? `<div class="note" style="margin:2px 2px 10px">Amazonのアソシエイトとして、当サイト運営者は適格販売により収入を得ています。</div>`
+    : `<div class="note" style="margin:2px 2px 10px">プレビュー表示中（AFF_TAG未設定のため、リンクを開いても収益は発生しません）</div>`);
 }
 function addAffToList(gi){
   const it = AFF_ITEMS[gi];
