@@ -170,6 +170,12 @@ textarea{resize:vertical;}
 .affbtn.rkt{background:var(--card); color:var(--tx);}
 .affbtn.add{background:var(--card); color:var(--sub); border-color:var(--line);}
 .affbtn:active{opacity:.7;}
+/* 撮影データの受け渡し */
+.waitrow{display:flex; align-items:center; gap:8px; margin-top:8px;}
+.waittag{
+  font-size:11px; font-weight:800; color:var(--tx);
+  background:var(--acbg); border:1px dashed var(--sub); border-radius:99px; padding:3px 10px;
+}
 .st3.prog3{margin-top:10px;}
 .st3.prog3 button{padding:7px 2px;}
 .st3.prog3 .plbl{display:block; font-size:13px; font-weight:800;}
@@ -418,7 +424,7 @@ function blankEvent(){
     recruits:[{chara:''}],
     recCam:'', recAs:'',              // カメラマン・アシスタントの募集枠人数
     members:[], cameras:[], assistants:[],
-    shots:[], pending:[], comments:{}, roster:{}, timetable:[],
+    shots:[], pending:[], comments:{}, roster:{}, timetable:[], dataLinks:[],
     bg:null, bgUrl:null, bgId:null,  // カウントダウン背景（bg=端末内dataURL・bgUrl=R2）
     sec:{},
     sync:{room: roomId()}
@@ -455,7 +461,7 @@ function cdText(d){
   const diff = new Date(d) - Date.now();
   if(isNaN(diff)) return '';
   if(diff <= 0){
-    return (diff > -86400000*1.5) ? '今日が本番！' : '撮影終了';
+    return (diff > -86400000) ? '今日が本番！' : '撮影データはこちら';
   }
   const day = Math.floor(diff/86400000);
   const h = Math.floor(diff%86400000/3600000);
@@ -467,9 +473,8 @@ function updateCdBadge(){
   if(!el) return;
   const e = ev();
   const t = (e && isFixed(e)) ? cdText(e.date) : '';
-  const show = !!t && t !== '撮影終了';
-  el.textContent = show ? t : '';
-  el.classList.toggle('hidden', !show);
+  el.textContent = t;
+  el.classList.toggle('hidden', !t);
 }
 
 /* ---- 上部固定バー & 併せ一覧 ---- */
@@ -1444,6 +1449,8 @@ function renderProg(){
     </div>`:''}
   </div>
 
+  ${dataLinksHTML(e)}
+
   <div class="card">
     <h3>みんなの準備</h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
@@ -1485,6 +1492,78 @@ function cycleProg(i,k){
   const m = ev().members[i];
   m.prog[k] = (m.prog[k]+1)%3;
   save(); renderTab();
+}
+
+/* ---- 撮影データの受け渡し（ギガファイル・Googleフォト等の共有URL置き場） ---- */
+function shootDaysAgo(e){
+  if(!isFixed(e)) return -1;
+  const diff = Date.now() - new Date(e.date);
+  return diff > 0 ? Math.floor(diff/86400000) : -1;
+}
+function dataLinksHTML(e){
+  if(!e.dataLinks) e.dataLinks = [];
+  /* 確定カメラマンの枠を自動生成（同名の枠がなければ追加） */
+  e.cameras.filter(c=>c.name).forEach(c=>{
+    if(!e.dataLinks.some(d=>d.label===c.name)) e.dataLinks.push({id:uid(), label:c.name, url:'', memo:''});
+  });
+  if(!e.dataLinks.length && !e.cameras.length) return '';
+  const owner = isOwner(e);
+  const days = shootDaysAgo(e);
+  return `<div class="card">
+    <h3>撮影データの受け渡し <span class="cnt">共有URLをここに集約</span></h3>
+    <div class="note" style="margin:0 0 8px">ギガファイル便・Googleフォト等の共有URLを貼ってください。小分けで送る場合は枠を追加してOKです。</div>
+    ${e.dataLinks.map((d,i)=>{
+      const waiting = days>=3 && !(d.url||'').trim();
+      return `<div class="mcard">
+      <div class="row">
+        <input type="text" value="${esc(d.label)}" placeholder="担当・ラベル（例：カメラマンK 前半分）" oninput="ev().dataLinks[${i}].label=this.value;save()">
+        ${owner?`<button class="del" onclick="delDataLink(${i})">✕</button>`:''}
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input type="text" value="${esc(d.url)}" placeholder="共有URLを貼り付け" oninput="ev().dataLinks[${i}].url=this.value;save()">
+        <button class="btn sec sm fix" onclick="openDataLink(${i})">開く</button>
+        <button class="rowbtn" onclick="copyDataLink(${i})">コピー</button>
+      </div>
+      <input type="text" value="${esc(d.memo)}" placeholder="メモ（例：保存期限8/31まで・後半は追って）" oninput="ev().dataLinks[${i}].memo=this.value;save()" style="margin-top:6px">
+      ${waiting?`<div class="waitrow">
+        <span class="waittag">データ待ち${days}日目</span>
+        <button class="rowbtn" onclick="copyRemind(${i})">リマインドメッセージをコピー</button>
+      </div>`:''}
+    </div>`;
+    }).join('')}
+    <button class="btn sec sm" onclick="addDataLink()">＋ 受け渡し枠を追加</button>
+  </div>`;
+}
+function addDataLink(){
+  const e = ev();
+  if(!e.dataLinks) e.dataLinks = [];
+  if(e.dataLinks.length >= 20){ toast('枠は20個までです'); return; }
+  e.dataLinks.push({id:uid(), label:'', url:'', memo:''});
+  save(); renderTab();
+}
+function delDataLink(i){
+  const e = ev();
+  const d = e.dataLinks[i];
+  if(!confirm(`${(d&&d.label)||'この枠'} を削除しますか？`)) return;
+  e.dataLinks.splice(i,1);
+  save(); renderTab();
+}
+function openDataLink(i){
+  let u = (ev().dataLinks[i].url||'').trim();
+  if(!u){ toast('URLを貼り付けてください'); return; }
+  if(!/^https?:\/\//i.test(u)) u = 'https://'+u;
+  window.open(u, '_blank');
+}
+function copyDataLink(i){
+  const u = (ev().dataLinks[i].url||'').trim();
+  if(!u){ toast('URLを貼り付けてください'); return; }
+  copyText(u);
+}
+function copyRemind(i){
+  const e = ev();
+  const d = e.dataLinks[i];
+  const name = (d.label||'').trim();
+  copyText(`${name?name+'さん、':''}先日の「${e.title||'併せ'}」お疲れさまでした！\n撮影データ、お手すきの際に共有いただけるとうれしいです。よろしくお願いします！`);
 }
 
 /* ---- おすすめ（アフィリエイト・忘れ物タブ下部） ----
@@ -2181,7 +2260,7 @@ function applyMeta(local, v){
     if(k==='bg') return; // 端末内の背景dataURLはリモートで消さない
     local[k] = (v[k]!==undefined) ? v[k] : base[k];
   });
-  ['recruits','members','cameras','assistants','timetable'].forEach(k=>{ local[k] = arrify(local[k]); });
+  ['recruits','members','cameras','assistants','timetable','dataLinks'].forEach(k=>{ local[k] = arrify(local[k]); });
   if(!local.sec || typeof local.sec!=='object') local.sec = {};
   local.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
   return true;
@@ -2517,6 +2596,7 @@ function importJSON(){
     if(!e.pending) e.pending=[];
     if(!e.comments || typeof e.comments!=='object') e.comments={};
     if(!e.roster || typeof e.roster!=='object') e.roster={};
+    if(!e.dataLinks) e.dataLinks=[];
     ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText','recCam','recAs','message'].forEach(k=>{ if(e[k]==null) e[k]=''; });
     if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
     if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
