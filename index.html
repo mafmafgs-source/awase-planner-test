@@ -395,6 +395,8 @@ const own = {
   mark(id){ const o=own.get(); o[id]=true; own.set(o); }
 };
 function isOwner(e){ return !!e && !!own.get()[e.id]; }
+/* この端末が枠の本人か（claim=最初の端末、claims=同じ個別リンクで追加接続した端末） */
+function isMine(x){ return !!x && (x.claim===clientId() || (x.claims||[]).includes(clientId())); }
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
 function setMyName(n){ try{ localStorage.setItem('awaseName', n); }catch(e){} }
 function clientId(){
@@ -1465,7 +1467,7 @@ function renderProg(){
   ${e.members.length? `<div class="note" style="margin:-2px 0 8px">ボタンをタップするごとに これから → 準備中 → できた！ と切り替わります。自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
   ${e.members.length? e.members.map((m,i)=>{
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
-    const mine = !!m.claim && m.claim===clientId();
+    const mine = isMine(m);
     const canEdit = mine || (isOwner(e) && !m.claim);
     return `<div class="mcard ${mine?'mine':''}">
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
@@ -1513,36 +1515,57 @@ function dataLinksHTML(e){
     }
   });
   if(!e.dataLinks.length) return '';
+  const owner = isOwner(e);
   const days = shootDaysAgo(e);
   return `<div class="secttl">撮影データの受け渡し</div>
-  <div class="note" style="margin:-2px 0 8px">ギガファイル便・Googleフォト等の共有URLをここに。小分けで送る場合は「＋ URL枠を追加」でどうぞ。</div>
+  <div class="note" style="margin:-2px 0 8px">ギガファイル便・Googleフォト等の共有URLをここに。編集できるのは主催とカメラマンさん本人です（閲覧・開く・コピーは全員）。</div>
   ${e.dataLinks.map((d,i)=>{
-    const cam = e.cameras.find(c=>c.name===d.label);
+    const ci = e.cameras.findIndex(c=>c.name===d.label);
+    const cam = ci>=0 ? e.cameras[ci] : null;
+    const mine = isMine(cam);
+    const canEdit = owner || mine;
     const waiting = days>=3 && d.links.every(l=>!(l.url||'').trim());
-    return `<div class="mcard">
-      <div class="nm">${esc(d.label)}さん <span class="tw">${cam&&cam.tw?esc(at(cam.tw)):''}</span></div>
+    return `<div class="mcard ${mine?'mine':''}">
+      <div class="nm">${esc(d.label)}さん <span class="tw">${cam&&cam.tw?esc(at(cam.tw)):''}</span>
+        ${cam? (mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimCam(${ci})">解除</button>`
+          : cam.claim? `<span class="mytag other">本人が更新中</span>${owner?`<button class="claimbtn" onclick="unclaimCam(${ci})">解除</button>`:''}`
+          : cam.ikey? `<span class="mytag other">リンク招待中</span>`
+          : `<button class="claimbtn" onclick="claimCam(${ci})">自分の枠にする</button>`) : ''}
+      </div>
       ${d.links.map((l,j)=>`<div style="${j>0?'border-top:1px dashed var(--line);margin-top:10px;padding-top:10px':''}">
         <div class="row" style="margin-top:6px">
-          <input type="text" value="${esc(l.url)}" placeholder="共有URLを貼り付け" oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save()">
+          <input type="text" style="flex:2;min-width:0" value="${esc(l.url)}" placeholder="共有URL" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save()"`:'readonly'}>
+          <input type="text" style="min-width:0" value="${esc(l.pw)}" placeholder="パスワード" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()"`:'readonly'}>
+          <input type="text" style="min-width:0" value="${esc(l.due)}" placeholder="DL期限" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()"`:'readonly'}>
           <button class="btn sec sm fix" onclick="openDataLink(${i},${j})">開く</button>
           <button class="rowbtn" onclick="copyDataLink(${i},${j})">コピー</button>
         </div>
-        <div class="row" style="margin-top:6px">
-          <input type="text" value="${esc(l.pw)}" placeholder="パスワード（あれば）" oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()">
-          <input type="text" value="${esc(l.due)}" placeholder="DL・保存期限（例：8/31まで）" oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()">
-        </div>
-        <input type="text" value="${esc(l.memo)}" placeholder="メモ（例：後半分は追って送ります）" oninput="ev().dataLinks[${i}].links[${j}].memo=this.value;save()" style="margin-top:6px">
-        ${d.links.length>1?`<div style="text-align:right;margin-top:4px"><button class="rowbtn" onclick="delDataUrl(${i},${j})">この枠を削除</button></div>`:''}
+        <input type="text" value="${esc(l.memo)}" placeholder="メモ（例：後半分は追って送ります）" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].memo=this.value;save()"`:'readonly'} style="margin-top:6px">
+        ${canEdit && d.links.length>1?`<div style="text-align:right;margin-top:4px"><button class="rowbtn" onclick="delDataUrl(${i},${j})">この枠を削除</button></div>`:''}
       </div>`).join('')}
-      <div class="row" style="margin-top:10px">
+      ${canEdit?`<div class="row" style="margin-top:10px">
         <button class="btn ghost sm" onclick="addDataUrl(${i})">＋ URL枠を追加（小分け用）</button>
-      </div>
+      </div>`:''}
       ${waiting?`<div class="waitrow">
         <span class="waittag">データ待ち${days}日目</span>
-        <button class="rowbtn" onclick="copyRemind(${i})">リマインドメッセージをコピー</button>
+        ${owner?`<button class="rowbtn" onclick="copyRemind(${i})">リマインドメッセージをコピー</button>`:''}
       </div>`:''}
     </div>`;
   }).join('')}`;
+}
+function claimCam(ci){
+  ev().cameras[ci].claim = clientId();
+  save(); renderTab();
+  toast('自分の枠に設定しました');
+}
+function unclaimCam(ci){
+  const c = ev().cameras[ci];
+  const mine = isMine(c);
+  if(!confirm(mine? 'この枠の「自分の枠」設定を解除しますか？（あとで再設定できます）'
+                  : 'この枠の本人設定を解除しますか？（本人が再度設定できます）')) return;
+  delete ev().cameras[ci].claim;
+  delete ev().cameras[ci].claims;
+  save(); renderTab();
 }
 function addDataUrl(i){
   const d = ev().dataLinks[i];
@@ -1813,10 +1836,11 @@ function claimMem(i){
 }
 function unclaimMem(i){
   const m = ev().members[i];
-  const mine = m && m.claim===clientId();
+  const mine = isMine(m);
   if(!confirm(mine? 'この枠の「自分の枠」設定を解除しますか？（あとで再設定できます）'
                   : 'この枠の本人設定を解除しますか？（本人が再度「自分の枠にする」を押せます）')) return;
   delete ev().members[i].claim;
+  delete ev().members[i].claims;
   save(); renderTab();
 }
 
@@ -2347,9 +2371,10 @@ function kickMember(cid){
   const r = (e.roster||{})[cid];
   if(!confirm(`${(r && r.name)||'この参加者'} さんに退出してもらいますか？\n相手の端末からこの併せが消え、同じリンクでは再参加できません。進捗の枠も解放されます。`)) return;
   let metaChanged = false;
-  e.members.forEach(m=>{
-    if(m.claim===cid){
+  e.members.concat(e.cameras).forEach(m=>{
+    if(m.claim===cid || (m.claims||[]).includes(cid)){
       delete m.claim;
+      delete m.claims; // 本人の全端末の接続を解除
       if(m.ikey) m.ikey = uid(); // 古い個別リンクを無効化（再招待時は新リンクをコピー）
       metaChanged = true;
     }
@@ -2424,22 +2449,32 @@ function tryJoinClaim(e){
   if(!e || !e.sync || !e.sync.room) return;
   const key = joinClaimMap()[e.sync.room];
   if(!key) return;
-  const m = e.members.find(x=>x.ikey===key);
+  /* メンバー枠→カメラマン枠の順で照合 */
+  const m = e.members.find(x=>x.ikey===key) || e.cameras.find(x=>x.ikey===key);
   if(!m) return; // 名簿がまだ同期されていない（次のmeta受信で再試行）or 枠が削除済み
+  const wasMine = isMine(m);
   if(m.claim && m.claim!==clientId()){
-    setJoinClaim(e.sync.room, null);
-    toast('この招待リンクの枠は、すでに別の端末で使われています（主催にご確認ください）');
-    return;
+    /* 同じ個別リンクを持っている＝本人の別端末（スマホ→PC等）とみなして追加接続 */
+    m.claims = m.claims || [];
+    if(!m.claims.includes(clientId())) m.claims.push(clientId());
+  }else{
+    m.claim = clientId();
   }
-  const wasMine = m.claim===clientId();
-  m.claim = clientId();
   if(m.name && !myName()) setMyName(m.name);
   setJoinClaim(e.sync.room, null);
   e.updatedAt = Date.now();
   store.set(state);
   pushBranch(e,'meta');
   if(cur===e.id) renderTab();
-  if(!wasMine) toast(`「${m.chara||m.name||'メンバー'}」の枠で参加しました`);
+  if(!wasMine) toast(`「${m.chara||m.name||'メンバー'}」の枠にこの端末で接続しました`);
+}
+function copyCameraInvite(i){
+  const e = ev();
+  const c = e.cameras[i];
+  if(!c) return;
+  if(!c.ikey){ c.ikey = uid(); save(); }
+  const url = inviteURL(e) + '&m=' + c.ikey;
+  copyText(`「${e.title||'併せ'}」にカメラマンとしてご招待します！\nこのリンクを開くだけで参加でき、撮影データの共有欄をご自身で編集できます（あなた専用のリンクです）。\n${url}`);
 }
 function copyMemberInvite(i){
   const e = ev();
@@ -2492,8 +2527,15 @@ function showInvite(){
         <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}</span>
         <button class="btn sec sm fix" onclick="copyMemberInvite(${i})">リンクをコピー</button>
       </div>`).join('')}
+      ${e.cameras.filter(c=>c.name).length?`
+      <div style="font-size:13.5px;font-weight:800;margin-top:16px">カメラマン別の招待リンク</div>
+      <div class="note" style="margin:2px 0 8px">本人に送ると、その方だけが自分の撮影データ欄を編集できるようになります。</div>
+      ${e.cameras.map((c,i)=>c.name?`<div class="row" style="margin:6px 0">
+        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}さん</span>
+        <button class="btn sec sm fix" onclick="copyCameraInvite(${i})">リンクをコピー</button>
+      </div>`:'').join('')}`:''}
       <div style="font-size:13.5px;font-weight:800;margin-top:16px">共通の招待リンク</div>
-      <div class="note" style="margin:2px 0 8px">カメラマン・アシスタントなど、枠のない方はこちらを。</div>`:''}
+      <div class="note" style="margin:2px 0 8px">アシスタントなど、枠のない方はこちらを。</div>`:''}
       <div style="font-size:13.5px;line-height:1.8;margin-bottom:10px">
         ${url? (isOwner(e)&&e.members.length? '' : 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！')
              : 'この招待コードをLINEやDMで送ってください。'}
