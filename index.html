@@ -235,6 +235,12 @@ input[readonly]{color:var(--sub);}
   position:absolute; bottom:0; left:0; right:0; background:linear-gradient(transparent,rgba(0,0,0,.65));
   color:#fff; font-size:10.5px; padding:14px 6px 4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+.shot.sel{outline:3px solid var(--tx); outline-offset:-3px;}
+.shot.sel::after{
+  content:'✓'; position:absolute; top:5px; right:5px; width:22px; height:22px;
+  background:var(--tx); color:#fff; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;
+}
 .shot .prio{
   position:absolute; top:5px; right:5px; font-size:10px; font-weight:800;
   padding:1px 6px; border-radius:3px; letter-spacing:.03em;
@@ -554,7 +560,7 @@ function renderTabs(){
   /* 招待者に要項タブはない。'info'のままなら併せタブへ寄せる */
   if(curTab==='info' && !isOwner(ev())) curTab='awase';
   const tabs = isOwner(ev())
-    ? [['info','要項'],['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']]
+    ? [['info','募集シート'],['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']]
     : [['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']];
   bar.innerHTML = tabs.map(([k,l])=>
     `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}${k==='prog'?'<span id="tabCd" class="tabcd hidden"></span>':''}</button>`).join('');
@@ -641,7 +647,7 @@ function renderAwase(){
     ${out}
     ${!hasContent(e) && !owner?`<div class="note" style="margin-top:14px">主催の端末と同期されると、ここに確定情報が表示されます。</div>`:''}
     ${owner
-      ? `<div class="note" style="margin-top:18px">招待者には、この併せページがこのまま表示されます（要項タブの入力・項目ON/OFFが自動で反映されます）。</div>`
+      ? `<div class="note" style="margin-top:18px">招待者には、この併せページがこのまま表示されます（募集シートの入力・項目ON/OFFが自動で反映されます）。</div>`
       : `<div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>`}
   </div>
   ${owner? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}`;
@@ -1473,7 +1479,7 @@ function renderProg(){
       <label class="fl">メモ（購入予定・課題など）</label>
       <textarea rows="2" maxlength="500" placeholder="例：ウィッグカット残り" ${canEdit?`oninput="ev().members[${i}].memo=this.value;save()"`:'readonly'}>${esc(m.memo||'')}</textarea>
     </div>`;
-  }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「要項」タブでメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
+  }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「募集シート」でメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
 }
 function cycleProg(i,k){
   const m = ev().members[i];
@@ -1735,6 +1741,7 @@ const PRIO_LABELS = ['指定なし','優先','絶対撮りたい'];
 const PRIO_BADGE = ['','優先','絶対'];
 const MAX_SHOTS = 30;
 const MAX_PENDING = 10;
+let shotSel = null; // 選択削除モード（nullでオフ、Setで選択中のid）
 const MAX_COMMENT_LEN = 300;      // 通信量の安全装置（コメントは併せ単位で全員に配信されるため）
 const MAX_COMMENTS_PER_SHOT = 50;
 
@@ -1789,7 +1796,7 @@ function renderShots(){
     <div class="shotgrid">
       ${list.map(({s,i})=>{
         const nc = (e.comments && e.comments[s.id] || []).length;
-        return `<div class="shot ${s.done?'done':''} ${s.prio?'p'+s.prio:''}" onclick="openShot(${i})">
+        return `<div class="shot ${s.done?'done':''} ${s.prio?'p'+s.prio:''} ${shotSel&&shotSel.has(s.id)?'sel':''}" onclick="${shotSel?`toggleShotSel('${s.id}')`:`openShot(${i})`}">
           <img src="${gridSrc(s)}" alt="">
           <span class="num">${i+1}</span>
           ${s.prio? `<span class="prio p${s.prio}">${PRIO_BADGE[s.prio]}</span>`:''}
@@ -1801,9 +1808,17 @@ function renderShots(){
     </div>
     ${!e.shots.length?`<div style="text-align:center;color:var(--sub);font-size:13px;padding:18px 0">参考にしたい構図・ポーズの画像を追加しましょう。<br>メンバーもカメラマンも同じリストを見られます。</div>`:''}
     <input type="file" id="shotFile" accept="image/*" multiple class="hidden" onchange="addShots(this.files)">
-    ${owner
+    ${owner && shotSel
+      ? `<div class="note" style="margin:4px 0 8px">削除したい構図をタップして選択してください（もう一度タップで解除）</div>
+         <button class="btn wide" onclick="delSelectedShots()">選択した${shotSel.size}枚を削除</button>
+         <button class="btn sec wide" onclick="shotSel=null;renderTab()">キャンセル</button>`
+      : owner
       ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を追加（複数可）</button>
-         <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮れた構図はタップして「撮れた！」でチェックしていきましょう。</div>`
+         <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮れた構図はタップして「撮れた！」でチェックしていきましょう。</div>
+         ${e.shots.length?`<div class="row" style="margin-top:10px">
+           <button class="btn ghost sm" onclick="shotSel=new Set();renderTab()">選択して削除</button>
+           <button class="btn ghost sm" onclick="delAllShots()">全て削除</button>
+         </div>`:''}`
       : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 撮りたい構図をリクエスト</button>
          <div class="note">リクエストした構図は主催のOKで一覧に追加されます。コメントと「撮れた！」チェックは誰でもできます。</div>`}
   </div>`;
@@ -1916,6 +1931,35 @@ function toggleShot(i){
   const s = ev().shots[i];
   s.done = !s.done;
   saveShots(); closeModal(); renderTab();
+}
+function toggleShotSel(id){
+  if(!shotSel) return;
+  if(shotSel.has(id)) shotSel.delete(id); else shotSel.add(id);
+  renderTab();
+}
+function delSelectedShots(){
+  const e = ev();
+  if(!shotSel || !shotSel.size){ toast('削除する構図をタップで選んでください'); return; }
+  if(!confirm(`選択した${shotSel.size}枚を削除しますか？（コメントも消えます）`)) return;
+  const del = e.shots.filter(s=>shotSel.has(s.id));
+  e.shots = e.shots.filter(s=>!shotSel.has(s.id));
+  del.forEach(s=>{
+    if(e.comments && e.comments[s.id]) delete e.comments[s.id];
+    if(s.url) deleteShotImage(e.sync.room, s.id);
+  });
+  shotSel = null;
+  saveShots(); saveComments(); renderTab();
+  toast('削除しました');
+}
+function delAllShots(){
+  const e = ev();
+  if(!e.shots.length) return;
+  if(!confirm(`構図${e.shots.length}枚をすべて削除しますか？（コメントも消えます）`)) return;
+  e.shots.forEach(s=>{ if(s.url) deleteShotImage(e.sync.room, s.id); });
+  e.shots = [];
+  e.comments = {};
+  saveShots(); saveComments(); renderTab();
+  toast('すべて削除しました');
 }
 function delShot(i){
   if(!confirm('この構図を削除しますか？（コメントも消えます）')) return;
