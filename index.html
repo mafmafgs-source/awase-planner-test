@@ -299,6 +299,19 @@ details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.
 .ttrow input.t{flex:0 0 92px;}
 .hidden{display:none!important;}
 .secttl{font-size:13px; font-weight:700; color:var(--sub); margin:18px 0 8px;}
+/* 大見出し（進捗タブのセクション区切り） */
+.sechd{
+  display:flex; align-items:baseline; gap:8px;
+  margin:26px 0 10px; padding:0 2px 7px;
+  border-bottom:2px solid var(--tx);
+}
+.sechd:first-child{margin-top:4px;}
+.sechd .t{font-size:16px; font-weight:800; letter-spacing:.02em; color:var(--tx); line-height:1.3;}
+.sechd .c{
+  margin-left:auto; flex:0 0 auto; font-size:11px; font-weight:800; color:var(--sub);
+  background:var(--acbg); border-radius:99px; padding:3px 9px; white-space:nowrap;
+}
+.sechd + .note{margin:-2px 0 10px; padding:0 2px;}
 /* document-style form */
 .doc{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:22px 18px 18px;}
 .doc .bigtitle{
@@ -1463,8 +1476,9 @@ function renderProg(){
       <b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join('')}
   </div>`:''}
 
-  <div class="secttl">メンバーごとの準備</div>
-  ${e.members.length? `<div class="note" style="margin:-2px 0 8px">ボタンをタップするごとに これから → 準備中 → できた！ と切り替わります。自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
+  <div class="sechd"><span class="t">メンバーごとの準備</span>${
+    e.members.length? `<span class="c">できた ${e.members.filter(m=>m.prog&&m.prog.ish===2&&m.prog.wig===2&&m.prog.item===2).length} / ${e.members.length}人</span>`:''}</div>
+  ${e.members.length? `<div class="note">ボタンをタップするごとに これから → 準備中 → できた！ と切り替わります。自分の枠は「自分の枠にする」を押すと編集できるようになります（本人だけが更新できます）</div>`:''}
   ${e.members.length? e.members.map((m,i)=>{
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
     const mine = isMine(m);
@@ -1502,6 +1516,15 @@ function shootDaysAgo(e){
   const diff = Date.now() - new Date(e.date);
   return diff > 0 ? Math.floor(diff/86400000) : -1;
 }
+function dataCountText(e){
+  const arrived = e.dataLinks.filter(d=>d.links.some(l=>(l.url||'').trim())).length;
+  return `届いた ${arrived} / ${e.dataLinks.length}人`;
+}
+/* URL入力中も見出しの件数を合わせる（再描画すると入力欄のフォーカスが外れるため文字だけ差し替え） */
+function refreshDataCount(){
+  const el = document.getElementById('dataCount');
+  if(el) el.textContent = dataCountText(ev());
+}
 function dataLinksHTML(e){
   if(!e.dataLinks) e.dataLinks = [];
   /* 旧形式（フラット）からの移行 */
@@ -1517,8 +1540,8 @@ function dataLinksHTML(e){
   if(!e.dataLinks.length) return '';
   const owner = isOwner(e);
   const days = shootDaysAgo(e);
-  return `<div class="secttl">撮影データの受け渡し</div>
-  <div class="note" style="margin:-2px 0 8px">ギガファイル便・Googleフォト等の共有URLをここに。編集できるのは主催とカメラマンさん本人です（閲覧・開く・コピーは全員）。</div>
+  return `<div class="sechd"><span class="t">撮影データの受け渡し</span><span class="c" id="dataCount">${dataCountText(e)}</span></div>
+  <div class="note">ギガファイル便・Googleフォト等の共有URLをここに。編集できるのは主催とカメラマンさん本人です（閲覧・開く・コピーは全員）。</div>
   ${e.dataLinks.map((d,i)=>{
     const ci = e.cameras.findIndex(c=>c.name===d.label);
     const cam = ci>=0 ? e.cameras[ci] : null;
@@ -1534,7 +1557,7 @@ function dataLinksHTML(e){
       </div>
       ${d.links.map((l,j)=>`<div style="${j>0?'border-top:1px dashed var(--line);margin-top:10px;padding-top:10px':''}">
         <div class="row" style="margin-top:6px">
-          <input type="text" style="flex:2;min-width:0" value="${esc(l.url)}" placeholder="共有URL" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save()"`:'readonly'}>
+          <input type="text" style="flex:2;min-width:0" value="${esc(l.url)}" placeholder="共有URL" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save();refreshDataCount()"`:'readonly'}>
           <input type="text" style="min-width:0" value="${esc(l.pw)}" placeholder="パスワード" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()"`:'readonly'}>
           <input type="text" style="min-width:0" value="${esc(l.due)}" placeholder="DL期限" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()"`:'readonly'}>
           <button class="btn sec sm fix" onclick="openDataLink(${i},${j})">開く</button>
