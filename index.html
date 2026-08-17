@@ -205,14 +205,18 @@ input[readonly]{color:var(--sub);}
   aspect-ratio:3/4; cursor:pointer; border:1px solid var(--line);
 }
 .shot img{width:100%; height:100%; object-fit:cover; display:block; transition:filter .25s,opacity .25s;}
-.shot.done img{filter:grayscale(1) brightness(.65); opacity:.7;}
+/* 撮影済み: 暗転ではなく「明るく満たされた」表現（白ベール＋達成スタンプ） */
+.shot.done img{filter:saturate(.55) brightness(1.06);}
+.shot.done::before{content:''; position:absolute; inset:0; background:rgba(255,255,255,.5);}
 .shot.p1{border:2px solid var(--sub);}
 .shot.p2{border:3px solid var(--tx);}
 .shot .ck{
   position:absolute; inset:0; display:none; align-items:center; justify-content:center;
 }
 .shot .ck span{
-  color:#fff; border:2px solid #fff; padding:2px 10px; font-size:15px; font-weight:800; border-radius:4px;
+  color:var(--tx); border:2px solid var(--tx); background:rgba(255,255,255,.88);
+  padding:2px 10px; font-size:14px; font-weight:800; border-radius:99px;
+  transform:rotate(-8deg); letter-spacing:.02em;
 }
 .shot.done .ck{display:flex;}
 .shot .num{
@@ -1850,7 +1854,7 @@ function openShot(i){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>構図 ${i+1} / ${e.shots.length}${s.by?`<span class="opt2">追加：${esc(s.by)}</span>`:''}</h3>
-      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:grayscale(1) brightness(.7)':''}">
+      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:saturate(.55) brightness(1.06);opacity:.75':''}">
 
       <label class="fl">優先度${owner?'':'（主催のみ変更できます）'}</label>
       <div class="st3">${PRIO_LABELS.map((pl,p)=>
