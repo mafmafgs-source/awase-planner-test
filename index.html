@@ -41,10 +41,12 @@ header h1{font-size:16px; font-weight:700; flex:1; white-space:nowrap; overflow:
   padding:2px 6px; line-height:1; font-weight:700;
 }
 .hbtn.txt{font-size:13px; border:1px solid var(--tx); border-radius:6px; padding:5px 12px;}
-.cdpill{
-  flex:0 0 auto; background:var(--tx); color:#fff; border:none; border-radius:99px;
-  padding:6px 13px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit;
-  letter-spacing:.02em; white-space:nowrap;
+/* 進捗タブに重ねるカウントダウンバッジ */
+.tabcd{
+  position:absolute; top:-10px; left:50%; transform:translateX(-50%) rotate(-4deg);
+  background:var(--tx); color:#fff; border-radius:99px; padding:2px 10px;
+  font-size:10.5px; font-weight:800; white-space:nowrap; pointer-events:none;
+  box-shadow:var(--sh); letter-spacing:.02em;
 }
 main{padding:16px;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
@@ -87,7 +89,7 @@ textarea{resize:vertical;}
 .tabs button{
   flex:1; background:none; border:none; padding:14px 0 12px; cursor:pointer;
   font-size:13px; color:var(--sub); font-family:inherit; font-weight:600;
-  border-top:2px solid transparent;
+  border-top:2px solid transparent; position:relative;
 }
 .tabs button.on{color:var(--tx); border-top-color:var(--tx); font-weight:700;}
 /* home */
@@ -211,9 +213,9 @@ input[readonly]{color:var(--sub);}
   aspect-ratio:3/4; cursor:pointer; border:1px solid var(--line);
 }
 .shot img{width:100%; height:100%; object-fit:cover; display:block; transition:filter .25s,opacity .25s;}
-/* 撮影済み: 暗転ではなく「明るく満たされた」表現（白ベール＋達成スタンプ） */
-.shot.done img{filter:saturate(.55) brightness(1.06);}
-.shot.done::before{content:''; position:absolute; inset:0; background:rgba(255,255,255,.68);}
+/* 撮影済み: 暗転ではなく「明るく満たされた」表現（白背景に透かす＋達成スタンプ） */
+.shot.done{background:#fff;}
+.shot.done img{filter:saturate(.6) brightness(1.05); opacity:.32;}
 .shot.p1{border:2px solid var(--sub);}
 .shot.p2{border:3px solid var(--tx);}
 .shot .ck{
@@ -347,7 +349,6 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   </div>
   <header>
     <h1 id="hTitle">併せPlanner</h1>
-    <button class="cdpill hidden" id="cdBadge" onclick="if(!LITE)switchTab('prog')"></button>
     <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
   </header>
 </div>
@@ -454,9 +455,9 @@ function cdText(d){
   const h = Math.floor(diff%86400000/3600000);
   return day>0 ? `あと${day}日！` : `あと${h}時間！`;
 }
-/* ヘッダーのカウントダウンバッジ（全タブ共通・タップで進捗へ） */
+/* 進捗タブに重ねるカウントダウンバッジ */
 function updateCdBadge(){
-  const el = document.getElementById('cdBadge');
+  const el = document.getElementById('tabCd');
   if(!el) return;
   const e = ev();
   const t = (e && isFixed(e)) ? cdText(e.date) : '';
@@ -556,7 +557,8 @@ function renderTabs(){
     ? [['info','要項'],['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']]
     : [['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']];
   bar.innerHTML = tabs.map(([k,l])=>
-    `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}</button>`).join('');
+    `<button class="${curTab===k?'on':''}" onclick="switchTab('${k}')">${l}${k==='prog'?'<span id="tabCd" class="tabcd hidden"></span>':''}</button>`).join('');
+  updateCdBadge();
 }
 function renderTab(){
   const e = ev();
@@ -1871,7 +1873,7 @@ function openShot(i){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>構図 ${i+1} / ${e.shots.length}${s.by?`<span class="opt2">追加：${esc(s.by)}</span>`:''}</h3>
-      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:saturate(.55) brightness(1.06);opacity:.75':''}">
+      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:saturate(.6) brightness(1.05);opacity:.35;background:#fff':''}">
 
       <label class="fl">優先度${owner?'':'（主催のみ変更できます）'}</label>
       <div class="st3">${PRIO_LABELS.map((pl,p)=>
