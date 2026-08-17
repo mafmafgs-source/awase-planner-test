@@ -1449,8 +1449,6 @@ function renderProg(){
     </div>`:''}
   </div>
 
-  ${dataLinksHTML(e)}
-
   <div class="card">
     <h3>みんなの準備</h3>
     <div class="pbar"><div style="width:${pct}%"></div></div>
@@ -1486,7 +1484,9 @@ function renderProg(){
       <label class="fl">メモ（購入予定・課題など）</label>
       <textarea rows="2" maxlength="500" placeholder="例：ウィッグカット残り" ${canEdit?`oninput="ev().members[${i}].memo=this.value;save()"`:'readonly'}>${esc(m.memo||'')}</textarea>
     </div>`;
-  }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「募集シート」でメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}`;
+  }).join('') : `<div class="card" style="color:var(--sub);text-align:center">「募集シート」でメンバーを追加すると<br>ここに進捗チェックが表示されます</div>`}
+
+  ${dataLinksHTML(e)}`;
 }
 function cycleProg(i,k){
   const m = ev().members[i];
@@ -1502,60 +1502,70 @@ function shootDaysAgo(e){
 }
 function dataLinksHTML(e){
   if(!e.dataLinks) e.dataLinks = [];
-  /* 確定カメラマンの枠を自動生成（同名の枠がなければ追加） */
-  e.cameras.filter(c=>c.name).forEach(c=>{
-    if(!e.dataLinks.some(d=>d.label===c.name)) e.dataLinks.push({id:uid(), label:c.name, url:'', memo:''});
+  /* 旧形式（フラット）からの移行 */
+  e.dataLinks.forEach(d=>{
+    if(!d.links) d.links = [{id:uid(), url:d.url||'', pw:'', due:'', memo:d.memo||''}];
   });
-  if(!e.dataLinks.length && !e.cameras.length) return '';
-  const owner = isOwner(e);
+  /* 確定カメラマンごとにカードを自動生成（メンバーと同じく名簿由来の固定表記） */
+  e.cameras.filter(c=>c.name).forEach(c=>{
+    if(!e.dataLinks.some(d=>d.label===c.name)){
+      e.dataLinks.push({id:uid(), label:c.name, links:[{id:uid(), url:'', pw:'', due:'', memo:''}]});
+    }
+  });
+  if(!e.dataLinks.length) return '';
   const days = shootDaysAgo(e);
-  return `<div class="card">
-    <h3>撮影データの受け渡し <span class="cnt">共有URLをここに集約</span></h3>
-    <div class="note" style="margin:0 0 8px">ギガファイル便・Googleフォト等の共有URLを貼ってください。小分けで送る場合は枠を追加してOKです。</div>
-    ${e.dataLinks.map((d,i)=>{
-      const waiting = days>=3 && !(d.url||'').trim();
-      return `<div class="mcard">
-      <div class="row">
-        <input type="text" value="${esc(d.label)}" placeholder="担当・ラベル（例：カメラマンK 前半分）" oninput="ev().dataLinks[${i}].label=this.value;save()">
-        ${owner?`<button class="del" onclick="delDataLink(${i})">✕</button>`:''}
+  return `<div class="secttl">撮影データの受け渡し</div>
+  <div class="note" style="margin:-2px 0 8px">ギガファイル便・Googleフォト等の共有URLをここに。小分けで送る場合は「＋ URL枠を追加」でどうぞ。</div>
+  ${e.dataLinks.map((d,i)=>{
+    const cam = e.cameras.find(c=>c.name===d.label);
+    const waiting = days>=3 && d.links.every(l=>!(l.url||'').trim());
+    return `<div class="mcard">
+      <div class="nm">${esc(d.label)}さん <span class="tw">${cam&&cam.tw?esc(at(cam.tw)):''}</span></div>
+      ${d.links.map((l,j)=>`<div style="${j>0?'border-top:1px dashed var(--line);margin-top:10px;padding-top:10px':''}">
+        <div class="row" style="margin-top:6px">
+          <input type="text" value="${esc(l.url)}" placeholder="共有URLを貼り付け" oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save()">
+          <button class="btn sec sm fix" onclick="openDataLink(${i},${j})">開く</button>
+          <button class="rowbtn" onclick="copyDataLink(${i},${j})">コピー</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <input type="text" value="${esc(l.pw)}" placeholder="パスワード（あれば）" oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()">
+          <input type="text" value="${esc(l.due)}" placeholder="DL・保存期限（例：8/31まで）" oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()">
+        </div>
+        <input type="text" value="${esc(l.memo)}" placeholder="メモ（例：後半分は追って送ります）" oninput="ev().dataLinks[${i}].links[${j}].memo=this.value;save()" style="margin-top:6px">
+        ${d.links.length>1?`<div style="text-align:right;margin-top:4px"><button class="rowbtn" onclick="delDataUrl(${i},${j})">この枠を削除</button></div>`:''}
+      </div>`).join('')}
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost sm" onclick="addDataUrl(${i})">＋ URL枠を追加（小分け用）</button>
       </div>
-      <div class="row" style="margin-top:6px">
-        <input type="text" value="${esc(d.url)}" placeholder="共有URLを貼り付け" oninput="ev().dataLinks[${i}].url=this.value;save()">
-        <button class="btn sec sm fix" onclick="openDataLink(${i})">開く</button>
-        <button class="rowbtn" onclick="copyDataLink(${i})">コピー</button>
-      </div>
-      <input type="text" value="${esc(d.memo)}" placeholder="メモ（例：保存期限8/31まで・後半は追って）" oninput="ev().dataLinks[${i}].memo=this.value;save()" style="margin-top:6px">
       ${waiting?`<div class="waitrow">
         <span class="waittag">データ待ち${days}日目</span>
         <button class="rowbtn" onclick="copyRemind(${i})">リマインドメッセージをコピー</button>
       </div>`:''}
     </div>`;
-    }).join('')}
-    <button class="btn sec sm" onclick="addDataLink()">＋ 受け渡し枠を追加</button>
-  </div>`;
+  }).join('')}`;
 }
-function addDataLink(){
-  const e = ev();
-  if(!e.dataLinks) e.dataLinks = [];
-  if(e.dataLinks.length >= 20){ toast('枠は20個までです'); return; }
-  e.dataLinks.push({id:uid(), label:'', url:'', memo:''});
+function addDataUrl(i){
+  const d = ev().dataLinks[i];
+  if(!d) return;
+  if(d.links.length >= 10){ toast('URL枠は10個までです'); return; }
+  d.links.push({id:uid(), url:'', pw:'', due:'', memo:''});
   save(); renderTab();
 }
-function delDataLink(i){
-  const e = ev();
-  const d = e.dataLinks[i];
-  if(!confirm(`${(d&&d.label)||'この枠'} を削除しますか？`)) return;
-  e.dataLinks.splice(i,1);
+function delDataUrl(i,j){
+  const d = ev().dataLinks[i];
+  if(!d || d.links.length<=1) return;
+  if(!confirm('このURL枠を削除しますか？')) return;
+  d.links.splice(j,1);
   save(); renderTab();
 }
-function openDataLink(i){
-  let u = (ev().dataLinks[i].url||'').trim();
+function openDataLink(i,j){
+  let u = (ev().dataLinks[i].links[j].url||'').trim();
   if(!u){ toast('URLを貼り付けてください'); return; }
   if(!/^https?:\/\//i.test(u)) u = 'https://'+u;
   window.open(u, '_blank');
 }
-function copyDataLink(i){
-  const u = (ev().dataLinks[i].url||'').trim();
+function copyDataLink(i,j){
+  const u = (ev().dataLinks[i].links[j].url||'').trim();
   if(!u){ toast('URLを貼り付けてください'); return; }
   copyText(u);
 }
