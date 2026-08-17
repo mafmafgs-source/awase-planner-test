@@ -1435,7 +1435,7 @@ function renderProg(){
     const canEdit = mine || (isOwner(e) && !m.claim);
     return `<div class="mcard">
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
-        ${mine? `<span class="mytag">自分の枠</span>`
+        ${mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`
           : m.claim? `<span class="mytag other">本人が更新中</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
           : m.ikey? `<span class="mytag other">リンク招待中</span>`
           : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
@@ -1694,7 +1694,10 @@ function claimMem(i){
   toast('自分の枠に設定しました');
 }
 function unclaimMem(i){
-  if(!confirm('この枠の本人設定を解除しますか？（本人が再度「自分の枠にする」を押せます）')) return;
+  const m = ev().members[i];
+  const mine = m && m.claim===clientId();
+  if(!confirm(mine? 'この枠の「自分の枠」設定を解除しますか？（あとで再設定できます）'
+                  : 'この枠の本人設定を解除しますか？（本人が再度「自分の枠にする」を押せます）')) return;
   delete ev().members[i].claim;
   save(); renderTab();
 }
