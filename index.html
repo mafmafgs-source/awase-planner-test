@@ -41,6 +41,11 @@ header h1{font-size:16px; font-weight:700; flex:1; white-space:nowrap; overflow:
   padding:2px 6px; line-height:1; font-weight:700;
 }
 .hbtn.txt{font-size:13px; border:1px solid var(--tx); border-radius:6px; padding:5px 12px;}
+.cdpill{
+  flex:0 0 auto; background:var(--tx); color:#fff; border:none; border-radius:99px;
+  padding:6px 13px; font-size:12px; font-weight:800; cursor:pointer; font-family:inherit;
+  letter-spacing:.02em; white-space:nowrap;
+}
 main{padding:16px;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
 .card h3{font-size:13.5px; color:var(--tx); margin-bottom:10px; letter-spacing:.02em;}
@@ -110,6 +115,7 @@ textarea{resize:vertical;}
 .st3 button.s1{border-color:var(--sub); color:var(--tx);}
 .st3 button.s2{background:var(--tx); border-color:var(--tx); color:#fff;}
 .mcard{border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px; background:var(--card);}
+.mcard.mine{border:2.5px solid var(--tx); box-shadow:var(--sh);}
 .mcard .nm{font-weight:700; font-size:14.5px;}
 .mcard .tw{color:var(--sub); font-size:12px; font-weight:400;}
 .mytag{font-size:10px; font-weight:800; border:1px solid var(--tx); border-radius:99px; padding:1px 8px; margin-left:6px; vertical-align:2px;}
@@ -207,7 +213,7 @@ input[readonly]{color:var(--sub);}
 .shot img{width:100%; height:100%; object-fit:cover; display:block; transition:filter .25s,opacity .25s;}
 /* 撮影済み: 暗転ではなく「明るく満たされた」表現（白ベール＋達成スタンプ） */
 .shot.done img{filter:saturate(.55) brightness(1.06);}
-.shot.done::before{content:''; position:absolute; inset:0; background:rgba(255,255,255,.5);}
+.shot.done::before{content:''; position:absolute; inset:0; background:rgba(255,255,255,.68);}
 .shot.p1{border:2px solid var(--sub);}
 .shot.p2{border:3px solid var(--tx);}
 .shot .ck{
@@ -341,6 +347,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   </div>
   <header>
     <h1 id="hTitle">併せPlanner</h1>
+    <button class="cdpill hidden" id="cdBadge" onclick="if(!LITE)switchTab('prog')"></button>
     <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
   </header>
 </div>
@@ -441,12 +448,21 @@ function cdText(d){
   const diff = new Date(d) - Date.now();
   if(isNaN(diff)) return '';
   if(diff <= 0){
-    return (diff > -86400000*1.5) ? '本日撮影日' : '撮影終了';
+    return (diff > -86400000*1.5) ? '今日が本番！' : '撮影終了';
   }
   const day = Math.floor(diff/86400000);
   const h = Math.floor(diff%86400000/3600000);
-  const m = Math.floor(diff%3600000/60000);
-  return day>0 ? `あと ${day}日 ${h}時間` : `あと ${h}時間 ${m}分`;
+  return day>0 ? `あと${day}日！` : `あと${h}時間！`;
+}
+/* ヘッダーのカウントダウンバッジ（全タブ共通・タップで進捗へ） */
+function updateCdBadge(){
+  const el = document.getElementById('cdBadge');
+  if(!el) return;
+  const e = ev();
+  const t = (e && isFixed(e)) ? cdText(e.date) : '';
+  const show = !!t && t !== '撮影終了';
+  el.textContent = show ? t : '';
+  el.classList.toggle('hidden', !show);
 }
 
 /* ---- 上部固定バー & 併せ一覧 ---- */
@@ -546,6 +562,7 @@ function renderTab(){
   const e = ev();
   if(!e){ openStart(); return; }
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
+  updateCdBadge();
   if(!isOwner(e) && curTab==='info') curTab='awase';
   if(LITE){ (isOwner(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
   if(curTab==='info') renderInfo();
@@ -1437,7 +1454,7 @@ function renderProg(){
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
     const mine = !!m.claim && m.claim===clientId();
     const canEdit = mine || (isOwner(e) && !m.claim);
-    return `<div class="mcard">
+    return `<div class="mcard ${mine?'mine':''}">
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
         ${mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`
           : m.claim? `<span class="mytag other">本人が更新中</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
@@ -1489,14 +1506,14 @@ function loadRanking(){
 }
 const AFF_TAG = '';
 const AFF_ITEMS = [
-  {cat:'差し入れ', name:'めぐリズム 蒸気でホットアイマスク', note:'撮影後の目の疲れに。差し入れの大定番', q:'めぐりズム ホットアイマスク', rakuten:''},
-  {cat:'差し入れ', name:'個包装のお菓子詰め合わせ', note:'配りやすく衣装を汚しにくい個包装が鉄板', q:'お菓子 個包装 詰め合わせ', rakuten:''},
-  {cat:'差し入れ', name:'汗拭きシート（無香料）', note:'夏のスタジオ・イベントで喜ばれ率が高い', q:'汗拭きシート 無香料', rakuten:''},
-  {cat:'差し入れ', name:'ミンティア・タブレット', note:'かさばらない気配り枠', q:'ミンティア', rakuten:''},
-  {cat:'コスメ', name:'CANMAKE クリームチーク', note:'発色を調整しやすいプチプラの定番', q:'キャンメイク クリームチーク', rakuten:''},
-  {cat:'コスメ', name:'セザンヌ 皮脂テカリ防止下地', note:'長時間撮影のテカリ対策に', q:'セザンヌ 皮脂テカリ防止下地', rakuten:''},
-  {cat:'コスメ', name:'KATE デザイニングアイブロウ', note:'キャラ眉の作り込みに使いやすい', q:'ケイト デザイニングアイブロウ', rakuten:''},
-  {cat:'コスメ', name:'ヒロインメイク ロングマスカラ', note:'落ちにくさ重視の現場向き', q:'ヒロインメイク マスカラ', rakuten:''}
+  {cat:'sweets', name:'個包装のお菓子詰め合わせ', note:'配りやすく衣装を汚しにくい個包装が鉄板', q:'お菓子 個包装 詰め合わせ', rakuten:''},
+  {cat:'sweets', name:'ミンティア・タブレット', note:'かさばらない気配り枠', q:'ミンティア', rakuten:''},
+  {cat:'sweets', name:'個包装ラムネ', note:'ブドウ糖補給。長丁場の集中力に', q:'ラムネ 個包装', rakuten:''},
+  {cat:'sweets', name:'個包装のど飴', note:'乾燥するスタジオ・声出し対策', q:'のど飴 個包装', rakuten:''},
+  {cat:'goods', name:'めぐリズム 蒸気でホットアイマスク', note:'撮影後の目の疲れに。差し入れの大定番', q:'めぐりズム ホットアイマスク', rakuten:''},
+  {cat:'goods', name:'汗拭きシート（無香料）', note:'夏のスタジオ・イベントで喜ばれ率が高い', q:'汗拭きシート 無香料', rakuten:''},
+  {cat:'goods', name:'ハンドクリーム（無香料）', note:'小さめサイズが荷物に優しい', q:'ハンドクリーム 無香料 ミニ', rakuten:''},
+  {cat:'goods', name:'冷感タオル', note:'夏の屋外撮影の救世主', q:'冷感タオル', rakuten:''}
 ];
 function affHTML(){
   /* ランキングデータがあればそちらを優先（毎朝自動更新・季節入替・成果リンク入り） */
@@ -1519,7 +1536,7 @@ function affHTML(){
   }
   /* フォールバック: 内蔵リスト。AFF_TAG未設定ならプレビュー表示（リンクにタグが付かず収益は発生しない） */
   const tagged = !!AFF_TAG;
-  const cats = [['差し入れ','差し入れの定番'],['コスメ','プチプラコスメの定番']];
+  const cats = [['sweets','お菓子の定番'],['goods','喜ばれる実用系']];
   const cards = cats.map(([cat,title])=>{
     const items = AFF_ITEMS.filter(x=>x.cat===cat);
     if(!items.length) return '';
@@ -1995,6 +2012,7 @@ setInterval(()=>{
     const d = el.getAttribute('data-cd');
     if(d) el.textContent = cdText(d);
   });
+  updateCdBadge();
 }, 30000);
 /* ============ 自動同期・招待・バックアップ ============ */
 
