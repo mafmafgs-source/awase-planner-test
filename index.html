@@ -364,6 +364,18 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .ro{font-size:14px; line-height:1.75; padding:2px 2px 0;}
 .rop{padding:3px 0; border-bottom:1px dashed var(--line);}
 .rop .tw{color:var(--sub); font-size:12px;}
+/* 参加者一覧（主催・副主催のみ表示。役割バッジと操作ボタンつき） */
+.rorow{
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px 4px;
+  padding:7px 0; border-bottom:1px dashed var(--line);
+}
+.rorow:last-of-type{border-bottom:none;}
+.rorow .ronm{
+  flex:1 1 120px; min-width:0; font-size:14px; font-weight:700;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.rorow .mytag{margin-left:0; flex:0 0 auto;}
+.rorow .claimbtn{flex:0 0 auto;}
 </style>
 </head>
 <body>
@@ -408,6 +420,11 @@ const own = {
   mark(id){ const o=own.get(); o[id]=true; own.set(o); }
 };
 function isOwner(e){ return !!e && !!own.get()[e.id]; }
+/* 副主催: 主催が名簿から任命した端末。主催と同じ権限を持つが、主催に対しては
+   退出も副主催の解除もできない（roster/{clientId}/sub で同期・端末ごと） */
+function isSub(e){ const r = e && e.roster && e.roster[clientId()]; return !!(r && r.sub && !r.ban); }
+/* 主催と同じ操作ができるか（主催 or 副主催）。権限判定はこちらを使う */
+function canHost(e){ return isOwner(e) || isSub(e); }
 /* この端末が枠の本人か（claim=最初の端末、claims=同じ個別リンクで追加接続した端末） */
 function isMine(x){ return !!x && (x.claim===clientId() || (x.claims||[]).includes(clientId())); }
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
@@ -578,8 +595,8 @@ function renderTabs(){
     return;
   }
   /* 招待者に要項タブはない。'info'のままなら併せタブへ寄せる */
-  if(curTab==='info' && !isOwner(ev())) curTab='awase';
-  const tabs = isOwner(ev())
+  if(curTab==='info' && !canHost(ev())) curTab='awase';
+  const tabs = canHost(ev())
     ? [['info','募集シート'],['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']]
     : [['awase','併せ'],['prog','進捗'],['shots','構図'],['items','忘れ物']];
   bar.innerHTML = tabs.map(([k,l])=>
@@ -591,8 +608,8 @@ function renderTab(){
   if(!e){ openStart(); return; }
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
   updateCdBadge();
-  if(!isOwner(e) && curTab==='info') curTab='awase';
-  if(LITE){ (isOwner(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
+  if(!canHost(e) && curTab==='info') curTab='awase';
+  if(LITE){ (canHost(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
   if(curTab==='info') renderInfo();
   else if(curTab==='awase') renderAwase();
   else if(curTab==='prog') renderProg();
@@ -606,7 +623,7 @@ function renderTab(){
 function renderAwase(){
   const e = ev();
   const v = document.getElementById('view');
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const S = k => secOn(e,k);
   const line = s => esc(s).replace(/\n/g,'<br>');
   const sect = (label, html) => `<div class="sech">${label}</div><div class="ro">${html}</div>`;
@@ -642,20 +659,28 @@ function renderAwase(){
   }
   if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
 
-  /* 参加者一覧（主催のみ・退出操作つき） */
+  /* 参加者一覧（主催・副主催のみ・役割の変更と退出操作つき） */
   if(owner){
     const ros = Object.entries(e.roster||{}).filter(([cid])=>cid!==clientId());
     out += `<div class="sech">【参加者】</div>`;
     if(!ros.length){
       out += !syncReady()
-        ? `<div class="note" style="margin:0">共有サーバーの設定後、この併せに参加した端末がここに表示され、退出してもらう操作ができます。</div>`
+        ? `<div class="note" style="margin:0">共有サーバーの設定後、この併せに参加した端末がここに表示され、副主催にしたり退出してもらったりできます。</div>`
         : `<div class="note" style="margin:0">まだ参加者はいません（招待リンクから参加するとここに表示されます）。</div>`;
     }else{
-      out += ros.map(([cid,r])=>`<div class="rop" style="display:flex;align-items:center;gap:8px">
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name)||'名前未設定'}</span>
-        ${r.ban? `<span class="mytag other">退出済み</span><button class="claimbtn" onclick="unkickMember('${esc(cid)}')">戻す</button>`
-               : `<button class="claimbtn" onclick="kickMember('${esc(cid)}')">退出してもらう</button>`}
-      </div>`).join('')
+      out += ros.map(([cid,r])=>{
+        const host = !!r.own;            // 主催の端末（副主催から見ても操作できない）
+        const sub = !!r.sub && !r.ban;
+        return `<div class="rorow">
+          <span class="ronm">${esc(r.name)||'名前未設定'}</span>
+          ${host? `<span class="mytag">主催</span>` : sub? `<span class="mytag">副主催</span>` : ''}
+          ${r.ban? `<span class="mytag other">退出済み</span><button class="claimbtn" onclick="unkickMember('${esc(cid)}')">戻す</button>`
+            : host? ''
+            : `<button class="claimbtn" onclick="setSub('${esc(cid)}',${sub?'false':'true'})">${sub?'副主催を解除':'副主催にする'}</button>
+               <button class="claimbtn" onclick="kickMember('${esc(cid)}')">退出してもらう</button>`}
+        </div>`;
+      }).join('')
+      + `<div class="note" style="margin-top:6px">副主催にすると、募集シートの編集・構図の管理・招待リンク・参加者の退出まで主催と同じ操作ができるようになります（主催に退出してもらうことと、主催の権限を変えることだけはできません）。</div>`
       + `<div class="note" style="margin-top:4px">退出させると相手の端末からこの併せが消え、同じリンクでは再参加できなくなります。進捗の枠と個別リンクも作り直されます。</div>`;
     }
   }
@@ -666,11 +691,13 @@ function renderAwase(){
     ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
     ${out}
     ${!hasContent(e) && !owner?`<div class="note" style="margin-top:14px">主催の端末と同期されると、ここに確定情報が表示されます。</div>`:''}
-    ${owner
+    ${isOwner(e)
       ? `<div class="note" style="margin-top:18px">招待者には、この併せページがこのまま表示されます（募集シートの入力・項目ON/OFFが自動で反映されます）。</div>`
+      : isSub(e)
+      ? `<div class="note" style="margin-top:18px">あなたは<b>副主催</b>です。主催と同じ操作ができます（主催に退出してもらうことはできません）。</div>`
       : `<div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>`}
   </div>
-  ${owner? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}`;
+  ${isOwner(e)? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}`;
 }
 
 /* ---- 入力済みの可視化 ---- */
@@ -1448,7 +1475,7 @@ function renderProg(){
   const tt = e.timetable.filter(t=>t.time||t.label);
   const fixed = isFixed(e);
   const bg = e.bgUrl || e.bg;
-  const owner = isOwner(e);
+  const owner = canHost(e);
   v.innerHTML = `
   <div class="cdbig ${bg?'hasbg':''}" ${bg?`style="background-image:url('${bg}')"`:''}>
     <div class="lbl">${fixed?'撮影日まで':'日程'}</div>
@@ -1482,11 +1509,11 @@ function renderProg(){
   ${e.members.length? e.members.map((m,i)=>{
     if(!m.prog) m.prog={ish:0,wig:0,item:0};
     const mine = isMine(m);
-    const canEdit = mine || (isOwner(e) && !m.claim);
+    const canEdit = mine || (canHost(e) && !m.claim);
     return `<div class="mcard ${mine?'mine':''}">
       <div class="nm">${esc(m.chara)||'キャラ未定'} <span class="tw">${esc(m.name)||''} ${m.tw?esc(at(m.tw)):''}</span>
         ${mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`
-          : m.claim? `<span class="mytag other">本人が更新中</span>${isOwner(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
+          : m.claim? `<span class="mytag other">本人が更新中</span>${canHost(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
           : m.ikey? `<span class="mytag other">リンク招待中</span>`
           : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
       </div>
@@ -1538,7 +1565,7 @@ function dataLinksHTML(e){
     }
   });
   if(!e.dataLinks.length) return '';
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const days = shootDaysAgo(e);
   return `<div class="sechd"><span class="t">撮影データの受け渡し</span><span class="c" id="dataCount">${dataCountText(e)}</span></div>
   <div class="note">ギガファイル便・Googleフォト等の共有URLをここに。編集できるのは主催とカメラマンさん本人です（閲覧・開く・コピーは全員）。</div>
@@ -1903,7 +1930,7 @@ function savePending(){ store.set(state); if(ev()) pushBranch(ev(),'pending'); }
 function renderShots(){
   const e = ev();
   const v = document.getElementById('view');
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const done = e.shots.filter(s=>s.done).length;
   const pct = e.shots.length? Math.round(done/e.shots.length*100):0;
   const list = e.shots.map((s,i)=>({s,i}));
@@ -1962,7 +1989,7 @@ function renderShots(){
 
 function addShots(files){
   const e = ev();
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const limit = owner ? MAX_SHOTS - e.shots.length : MAX_PENDING - (e.pending||[]).length;
   const arr = Array.from(files||[]).slice(0, Math.max(0,limit));
   if(!arr.length) return;
@@ -2018,7 +2045,7 @@ function openShot(i){
   const e = ev();
   const s = e.shots[i];
   if(!s) return;
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const cs = (e.comments && e.comments[s.id]) || [];
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
@@ -2126,7 +2153,7 @@ function openPending(i){
   const e = ev();
   const p = (e.pending||[])[i];
   if(!p) return;
-  const owner = isOwner(e);
+  const owner = canHost(e);
   const mine = p.byId && p.byId === clientId();
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
@@ -2374,10 +2401,11 @@ function registerRoster(e){
   const cid = clientId();
   const cur0 = (e.roster||{})[cid];
   if(cur0 && cur0.ban) return;
-  const nm = myName() || (isOwner(e)? '主催' : '');
+  const nm = myName() || (isOwner(e)? '主催' : (isSub(e)? '副主催' : ''));
   if(cur0 && cur0.name===nm) return;
   const entry = {name:nm, at:(cur0 && cur0.at)||Date.now()};
   if(isOwner(e)) entry.own = true;
+  if(cur0 && cur0.sub) entry.sub = true; // 副主催の任命は名前の書き換えで消さない
   try{ conns[e.id].child('roster/'+cid).set(entry); }catch(err){}
 }
 function leaveKicked(e){
@@ -2390,8 +2418,10 @@ function leaveKicked(e){
 }
 function kickMember(cid){
   const e = ev();
-  if(!e || !isOwner(e)) return;
+  if(!e || !canHost(e)) return;
   const r = (e.roster||{})[cid];
+  /* 副主催は主催に手出しできない（主催だけが上位） */
+  if(r && r.own && !isOwner(e)){ toast('主催に退出してもらうことはできません'); return; }
   if(!confirm(`${(r && r.name)||'この参加者'} さんに退出してもらいますか？\n相手の端末からこの併せが消え、同じリンクでは再参加できません。進捗の枠も解放されます。`)) return;
   let metaChanged = false;
   e.members.concat(e.cameras).forEach(m=>{
@@ -2413,12 +2443,34 @@ function kickMember(cid){
 }
 function unkickMember(cid){
   const e = ev();
-  if(!e || !isOwner(e) || !e.roster || !e.roster[cid]) return;
+  if(!e || !canHost(e) || !e.roster || !e.roster[cid]) return;
   delete e.roster[cid].ban;
   store.set(state);
   if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid+'/ban').set(null); }catch(err){} }
   renderTab();
   toast('再参加できるようにしました');
+}
+
+/* ---- 副主催 ----
+   主催と同じ操作（募集シートの編集・構図の管理・進捗・招待リンク・参加者の退出）ができる端末。
+   主催に対してだけは何もできない（退出も副主催の解除も不可）。
+   端末単位（clientId）なので、同じ人でも別の端末で参加し直したら任命し直す。 */
+function setSub(cid, on){
+  const e = ev();
+  if(!e || !canHost(e)) return;
+  const r = (e.roster||{})[cid];
+  if(!r) return;
+  if(r.own){ toast('主催の権限は変えられません'); return; }
+  if(r.ban){ toast('退出した方は副主催にできません'); return; }
+  const nm = r.name || 'この参加者';
+  if(!confirm(on
+    ? nm + ' さんを副主催にしますか？\n募集シートの編集・構図の管理・招待リンク・参加者の退出まで、主催と同じ操作ができるようになります。'
+    : nm + ' さんの副主催を解除しますか？')) return;
+  if(on) r.sub = true; else delete r.sub;
+  store.set(state);
+  if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid+'/sub').set(on? true : null); }catch(err){} }
+  renderTab();
+  toast(on? '副主催にしました' : '副主催を解除しました');
 }
 
 /* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
@@ -2543,7 +2595,7 @@ function showInvite(){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>メンバーを招待</h3>
-      ${url && isOwner(e) && e.members.length? `
+      ${url && canHost(e) && e.members.length? `
       <div style="font-size:13.5px;font-weight:800">メンバー別の招待リンク</div>
       <div class="note" style="margin:2px 0 8px">確定メンバー本人のXアカウントへDMで送ってください。開いた人は<b>その枠に自動で紐づき、名前の入力も不要</b>です。</div>
       ${e.members.map((m,i)=>`<div class="row" style="margin:6px 0">
@@ -2560,7 +2612,7 @@ function showInvite(){
       <div style="font-size:13.5px;font-weight:800;margin-top:16px">共通の招待リンク</div>
       <div class="note" style="margin:2px 0 8px">アシスタントなど、枠のない方はこちらを。</div>`:''}
       <div style="font-size:13.5px;line-height:1.8;margin-bottom:10px">
-        ${url? (isOwner(e)&&e.members.length? '' : 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！')
+        ${url? (canHost(e)&&e.members.length? '' : 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！')
              : 'この招待コードをLINEやDMで送ってください。'}
       </div>
       ${url? `<div style="background:var(--acbg);border-radius:10px;padding:10px;font-size:12px;word-break:break-all">${esc(url)}</div>`
