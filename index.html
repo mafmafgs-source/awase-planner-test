@@ -332,6 +332,10 @@ details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.
   flex:0 0 auto; letter-spacing:.05em;
 }
 .tgl.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+/* たたんでおく説明（募集シートの【副主催】など） */
+details.exp{margin:2px 0 8px; font-size:13px;}
+details.exp summary{font-size:12px; color:var(--sub); font-weight:700;}
+details.exp .note{margin:6px 0 0;}
 details.preset{margin:6px 0 2px;}
 details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; cursor:pointer;}
 .pchip{
@@ -364,6 +368,13 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .ro{font-size:14px; line-height:1.75; padding:2px 2px 0;}
 .rop{padding:3px 0; border-bottom:1px dashed var(--line);}
 .rop .tw{color:var(--sub); font-size:12px;}
+/* 併せページの人名タップ → Xのプロフィールを開く */
+.rop .xlink{
+  background:none; border:none; padding:0; font:inherit; color:inherit;
+  text-align:left; cursor:pointer; font-family:inherit;
+}
+.rop .xlink .tw{text-decoration:underline;}
+.rop .xlink:active{opacity:.6;}
 /* 参加者一覧（主催・副主催のみ表示。役割バッジと操作ボタンつき） */
 .rorow{
   display:flex; align-items:center; flex-wrap:wrap; gap:6px 4px;
@@ -448,6 +459,7 @@ function blankEvent(){
     id: uid(), updatedAt: Date.now(),
     title:'', intro:'', content:'',
     host:'', hostTw:'',
+    subHosts:[],                     // 副主催（主催と同じ権限。募集シートで先に決めておく枠）
     dateType:'tbd', date:'', dateText:'', endTime:'',
     place:'', studio:'', placeUrl:'', station:'', costume:'',
     feeLayer:'', feeCamera:'',
@@ -627,8 +639,19 @@ function renderAwase(){
   const S = k => secOn(e,k);
   const line = s => esc(s).replace(/\n/g,'<br>');
   const sect = (label, html) => `<div class="sech">${label}</div><div class="ro">${html}</div>`;
-  const person = p => `<div class="rop">${p.chara?esc(p.chara)+'：':''}${esc(p.name)||'（名前未定）'} <span class="tw">${p.tw?esc(at(p.tw)):''}</span></div>`;
+  /* @IDがある人は名前ごとタップでXのプロフィールへ */
+  const person = p => {
+    const h = xHandle(p.tw);
+    const nm = `${p.chara?esc(p.chara)+'：':''}${esc(p.name)||'（名前未定）'}`;
+    return `<div class="rop">${h
+      ? `<button class="xlink" onclick="openX('${h}')">${nm} <span class="tw">${esc(at(h))}</span></button>`
+      : nm}</div>`;
+  };
   let out = '';
+  /* 主催・副主催は募集シートと同じく先頭に */
+  if(e.host || e.hostTw) out += sect('【主催】', person({name:e.host, tw:e.hostTw}));
+  const subs = (e.subHosts||[]).filter(h=>h.name||h.tw);
+  if(subs.length) out += sect('【副主催】', subs.map(person).join(''));
   out += sect('【日程】', isFixed(e)
     ? `${esc(dateDisp(e))}<div class="cdown" data-cd="${e.date}" style="margin-top:6px">${cdText(e.date)}</div>`
     : esc(dateDisp(e)));
@@ -874,6 +897,16 @@ function renderInfo(){
       <input type="text" value="${esc(e.hostTw)}" placeholder="@ID（プロフィールURL貼り付けOK）" oninput="twHostInput(this)">
     </div>
 
+    <div class="sech">【副主催】<span class="opt">任意・何人でも</span></div>
+    <details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
+      <summary>副主催とは？</summary>
+      <div class="note">${LITE
+        ? '主催と一緒に併せを回す方です。ここに入れておくと、募集スクショに主催と並べて表示されます。'
+        : '主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから【参加者】で任命することもできます。'}</div>
+    </details>
+    <div id="subList">${(e.subHosts||[]).map((h,i)=>subRow(h,i)).join('')}</div>
+    <button class="btn sec sm" onclick="addSubHost()">＋ 副主催を追加</button>
+
     <div class="sech">【作品】</div>
     <input type="text" value="${esc(e.content)}" placeholder="コンテンツ名" oninput="uf('content',this.value)">
 
@@ -1011,6 +1044,13 @@ function twInput(el, kind, i){
   arr[i].tw = el.value;
   save();
 }
+/* @ID → Xのハンドル（英数字と _ だけ残す。リンク生成とHTML埋め込みの安全側） */
+function xHandle(t){ return String(t||'').trim().replace(/^@/,'').replace(/[^A-Za-z0-9_]/g,''); }
+function openX(id){
+  id = xHandle(id);
+  if(!id){ toast('@IDが未入力です'); return; }
+  window.open('https://x.com/'+id, '_blank');
+}
 function twHostInput(el){
   const tw = extractTw(el.value);
   if(tw && tw !== el.value.trim()){ el.value = tw; toast('@IDを自動入力しました'); }
@@ -1054,6 +1094,7 @@ function delPerson(kind,i){
   if(!p) return;
   const nm = [p.chara, p.name, p.tw].filter(Boolean).join(' ');
   if(!confirm(`${nm||'この行'} を削除しますか？`)) return;
+  if(kind==='subHosts') revokeSubSlot(p);   // 枠を消したら副主催の権限も外す
   arr.splice(i,1);
   save(); renderTab();
 }
@@ -1070,6 +1111,21 @@ function camRow(c,i){
   </div>`;
 }
 function addCam(){ ev().cameras.push({name:'',tw:''}); save(); renderTab(); }
+
+function subRow(h,i){
+  return `<div class="row" style="margin-bottom:8px">
+    <input type="text" value="${esc(h.name)}" placeholder="お名前" oninput="ev().subHosts[${i}].name=this.value;save()">
+    <input type="text" value="${esc(h.tw)}" placeholder="@ID" oninput="twInput(this,'subHosts',${i})">
+    <button class="del" onclick="delPerson('subHosts',${i})">✕</button>
+    <button class="rowbtn" onclick="copyPerson('subHosts',${i})">コピー</button>
+  </div>`;
+}
+function addSubHost(){
+  const e = ev();
+  if(!e.subHosts) e.subHosts = [];
+  e.subHosts.push({name:'',tw:''});
+  save(); renderTab();
+}
 
 function asRow(a,i){
   return `<div class="row" style="margin-bottom:8px">
@@ -1248,6 +1304,14 @@ function detailBlocks(e){
   if(e.intro){ B.push({t:'sp'}); lines(e.intro).forEach(l=>B.push({t:'b', text:l})); }
   B.push({t:'sp'});
   if(e.host) kv('【主催】', `${e.host}${e.hostTw?`（${at(e.hostTw)}）`:''}`);
+  /* 副主催は1人ならkv1行、2人以上は見出し＋箇条書きで折り返しを避ける */
+  const subs = (e.subHosts||[]).filter(h=>h.name||h.tw)
+    .map(h=>`${h.name||''}${h.tw?`（${at(h.tw)}）`:''}`);
+  if(subs.length===1) kv('【副主催】', subs[0]);
+  else if(subs.length>1){
+    B.push({t:'h', text:'【副主催】'});
+    subs.forEach(x=>B.push({t:'b', text:'・'+x}));
+  }
   if(e.content) kv('【作品】', e.content);
   kv('【日程】', dateDisp(e));
   if(S('place')){
@@ -2344,7 +2408,7 @@ function applyMeta(local, v){
     if(k==='bg') return; // 端末内の背景dataURLはリモートで消さない
     local[k] = (v[k]!==undefined) ? v[k] : base[k];
   });
-  ['recruits','members','cameras','assistants','timetable','dataLinks'].forEach(k=>{ local[k] = arrify(local[k]); });
+  ['recruits','members','cameras','assistants','subHosts','timetable','dataLinks'].forEach(k=>{ local[k] = arrify(local[k]); });
   if(!local.sec || typeof local.sec!=='object') local.sec = {};
   local.members.forEach(m=>{ if(!m.prog) m.prog={ish:0,wig:0,item:0}; });
   return true;
@@ -2524,9 +2588,11 @@ function tryJoinClaim(e){
   if(!e || !e.sync || !e.sync.room) return;
   const key = joinClaimMap()[e.sync.room];
   if(!key) return;
-  /* メンバー枠→カメラマン枠の順で照合 */
-  const m = e.members.find(x=>x.ikey===key) || e.cameras.find(x=>x.ikey===key);
+  /* メンバー枠→カメラマン枠→副主催枠の順で照合 */
+  const subs = e.subHosts || [];
+  const m = e.members.find(x=>x.ikey===key) || e.cameras.find(x=>x.ikey===key) || subs.find(x=>x.ikey===key);
   if(!m) return; // 名簿がまだ同期されていない（次のmeta受信で再試行）or 枠が削除済み
+  const subSlot = subs.indexOf(m) >= 0;
   const wasMine = isMine(m);
   if(m.claim && m.claim!==clientId()){
     /* 同じ個別リンクを持っている＝本人の別端末（スマホ→PC等）とみなして追加接続 */
@@ -2536,12 +2602,33 @@ function tryJoinClaim(e){
     m.claim = clientId();
   }
   if(m.name && !myName()) setMyName(m.name);
+  if(subSlot) grantSubSlot(e, m);   // 副主催専用リンク＝開いた時点で主催と同じ権限になる
   setJoinClaim(e.sync.room, null);
   e.updatedAt = Date.now();
   store.set(state);
   pushBranch(e,'meta');
   if(cur===e.id) renderTab();
-  if(!wasMine) toast(`「${m.chara||m.name||'メンバー'}」の枠にこの端末で接続しました`);
+  if(!wasMine) toast(subSlot? 'この端末が副主催になりました' : `「${m.chara||m.name||'メンバー'}」の枠にこの端末で接続しました`);
+}
+/* 副主催枠のリンクで参加した端末に、名簿側の権限フラグを立てる */
+function grantSubSlot(e, slot){
+  const cid = clientId();
+  if(!e.roster) e.roster = {};
+  const r = e.roster[cid] || {name:'', at:Date.now()};
+  r.sub = true;
+  if(slot.name) r.name = slot.name;
+  e.roster[cid] = r;
+  if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid).set(stripNulls(r)); }catch(err){} }
+}
+/* 募集シートから副主催の枠を消したとき、その枠で繋がっていた端末の権限を外す */
+function revokeSubSlot(slot){
+  const e = ev();
+  if(!e || !slot) return;
+  const cids = [slot.claim].concat(slot.claims||[]).filter(Boolean);
+  cids.forEach(cid=>{
+    if(e.roster && e.roster[cid]) delete e.roster[cid].sub;
+    if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid+'/sub').set(null); }catch(err){} }
+  });
 }
 function copyCameraInvite(i){
   const e = ev();
@@ -2550,6 +2637,15 @@ function copyCameraInvite(i){
   if(!c.ikey){ c.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + c.ikey;
   copyText(`「${e.title||'併せ'}」にカメラマンとしてご招待します！\nこのリンクを開くだけで参加でき、撮影データの共有欄をご自身で編集できます（あなた専用のリンクです）。\n${url}`);
+}
+function copySubInvite(i){
+  const e = ev();
+  const h = (e.subHosts||[])[i];
+  if(!h) return;
+  if(!h.ikey){ h.ikey = uid(); save(); }
+  const url = inviteURL(e) + '&m=' + h.ikey;
+  copyText('「' + (e.title||'併せ') + '」の副主催をお願いします！' + '\n' +
+    'このリンクを開くだけで参加でき、募集シートの編集・構図の管理・参加者への連絡まで主催と同じ操作ができます（あなた専用のリンクです）。' + '\n' + url);
 }
 function copyMemberInvite(i){
   const e = ev();
@@ -2602,6 +2698,13 @@ function showInvite(){
         <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}</span>
         <button class="btn sec sm fix" onclick="copyMemberInvite(${i})">リンクをコピー</button>
       </div>`).join('')}
+      ${(e.subHosts||[]).filter(h=>h.name).length?`
+      <div style="font-size:13.5px;font-weight:800;margin-top:16px">副主催の招待リンク</div>
+      <div class="note" style="margin:2px 0 8px">開いた時点で主催と同じ操作ができるようになります。信頼できる方にだけ送ってください。</div>
+      ${(e.subHosts||[]).map((h,i)=>h.name?`<div class="row" style="margin:6px 0">
+        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.name)}さん</span>
+        <button class="btn sec sm fix" onclick="copySubInvite(${i})">リンクをコピー</button>
+      </div>`:'').join('')}`:''}
       ${e.cameras.filter(c=>c.name).length?`
       <div style="font-size:13.5px;font-weight:800;margin-top:16px">カメラマン別の招待リンク</div>
       <div class="note" style="margin:2px 0 8px">本人に送ると、その方だけが自分の撮影データ欄を編集できるようになります。</div>
@@ -2724,6 +2827,7 @@ function importJSON(){
     if(!e.comments || typeof e.comments!=='object') e.comments={};
     if(!e.roster || typeof e.roster!=='object') e.roster={};
     if(!e.dataLinks) e.dataLinks=[];
+    if(!e.subHosts) e.subHosts=[];
     ['intro','host','hostTw','station','placeUrl','costume','feeLayer','feeCamera','condCommon','condLayer','condCamera','notes','dateText','recCam','recAs','message'].forEach(k=>{ if(e[k]==null) e[k]=''; });
     if(e.fee && !e.feeLayer){ e.feeLayer = e.fee; delete e.fee; }
     if(!e.dateType) e.dateType = e.date ? 'fixed' : 'tbd';
