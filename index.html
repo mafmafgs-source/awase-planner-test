@@ -158,6 +158,10 @@ textarea{resize:vertical;}
 /* おすすめ（アフィリエイト） */
 .affrow{display:flex; gap:10px; align-items:center; padding:9px 0; border-bottom:1px dashed var(--line);}
 .affrow:last-child{border-bottom:none;}
+.affthumb{
+  flex:0 0 52px; width:52px; height:52px; border-radius:6px; object-fit:cover;
+  background:var(--acbg); border:1px solid var(--line);
+}
 .affbody{flex:1; min-width:0;}
 .affname{font-size:13.5px; font-weight:700; line-height:1.4;}
 .affnote{font-size:11.5px; color:var(--sub); margin-top:2px; line-height:1.5;}
@@ -898,12 +902,10 @@ function renderInfo(){
     </div>
 
     <div class="sech">【副主催】<span class="opt">任意・何人でも</span></div>
-    <details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
+    ${LITE? '' : `<details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
       <summary>副主催とは？</summary>
-      <div class="note">${LITE
-        ? '主催と一緒に併せを回す方です。ここに入れておくと、募集スクショに主催と並べて表示されます。'
-        : '主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから【参加者】で任命することもできます。'}</div>
-    </details>
+      <div class="note">主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから【参加者】で任命することもできます。</div>
+    </details>`}
     <div id="subList">${(e.subHosts||[]).map((h,i)=>subRow(h,i)).join('')}</div>
     <button class="btn sec sm" onclick="addSubHost()">＋ 副主催を追加</button>
 
@@ -1755,6 +1757,7 @@ function affHTML(){
     return rankingData.categories.map(cat=>`<div class="card">
       <h3>${esc(cat.title)} <span class="cnt">広告（アフィリエイトリンク）</span></h3>
       ${cat.items.map(it=>`<div class="affrow">
+        ${it.image?`<img class="affthumb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
         <div class="affbody">
           <div class="affname">${esc(it.label)}</div>
           <div class="affnote">${esc(it.note)}</div>
