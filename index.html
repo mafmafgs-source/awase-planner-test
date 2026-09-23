@@ -427,6 +427,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   </div>
   <header>
     <h1 id="hTitle">併せPlanner</h1>
+    <button class="hbtn txt" id="meBtn" onclick="showMyPage()">マイページ</button>
     <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
   </header>
   <div class="appbanner hidden" id="appBanner"></div>
@@ -483,6 +484,19 @@ function setMyName(n){
   bkDirty();
   /* 参加後に名前を入れた／変えた → 名簿（主催の参加者一覧）にも反映 */
   if(typeof conns!=='undefined') state.events.forEach(e=>{ if(conns[e.id]) registerRoster(e); });
+}
+/* マイページのXの@ID（名前は表示名 myName と共通） */
+function myTw(){ try{ return localStorage.getItem('awaseTw')||''; }catch(e){ return ''; } }
+function setMyTw(t){
+  try{ localStorage.setItem('awaseTw', t); localStorage.setItem('awaseTwAt', String(Date.now())); }catch(e){}
+  bkDirty();
+}
+/* 主催の併せで【主催】欄が空なら、マイページの名前・@IDを入れる（招待で参加した併せ・副主催の併せには触らない） */
+function fillHost(e){
+  if(!e || !isOwner(e) || e.host || e.hostTw) return false;
+  if(!myName() && !myTw()) return false;
+  e.host = myName(); e.hostTw = myTw();
+  return true;
 }
 function clientId(){
   try{
@@ -604,8 +618,8 @@ function showList(){
       <button class="btn ghost wide" onclick="closeModal();joinPrompt()">招待コードで参加する</button>
       <details style="text-align:center"><summary>設定・バックアップ</summary>
         <div style="padding:10px">
-          <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">表示名：${esc(myName())||'未設定'}
-            <button class="btn ghost sm" onclick="closeModal();ensureName()" style="margin-left:6px">変更</button></div>
+          <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">マイページ：${esc(myName())||'名前未設定'}${myTw()?`（${esc(at(myTw()))}）`:''}
+            <button class="btn ghost sm" onclick="closeModal();showMyPage()" style="margin-left:6px">変更</button></div>
           ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}</div>
           <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">バックアップ・ほかの端末と連携</button>
           <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ・つなぐ</button>
@@ -632,6 +646,7 @@ function openStart(){
   if(!state.events.length){
     const e = blankEvent();
     own.mark(e.id);
+    fillHost(e);
     state.events.push(e);
     store.set(state);
   }
@@ -822,6 +837,7 @@ document.addEventListener('input', ev0=>{
 function newEvent(){
   const e = blankEvent();
   own.mark(e.id);
+  fillHost(e);
   state.events.push(e);
   save(false);
   openEvent(e.id,'info');
@@ -2559,6 +2575,7 @@ function vLocal(){
     deleted: lsJson('awaseDeleted', {}),
     items: {at: +(lsGet('awaseMyItemsAt')||0), list: lsJson('awaseMyItems', null)},
     name: {at: +(lsGet('awaseNameAt')||0), v: myName()},
+    tw: {at: +(lsGet('awaseTwAt')||0), v: myTw()},
     hidden: lsJson('awaseHidden', {}),
     terms: lsGet('awaseTerms') || ''
   };
@@ -2579,6 +2596,7 @@ function vFromV1(d){
     owned: j(k.awaseOwned, {}), deleted: {},
     items: {at: k.awaseMyItems ? 1 : 0, list: j(k.awaseMyItems, null)},
     name: {at: k.awaseName ? 1 : 0, v: k.awaseName || ''},
+    tw: {at: k.awaseTw ? 1 : 0, v: k.awaseTw || ''},
     hidden: j(k.awaseHidden, {}), terms: k.awaseTerms || ''
   };
 }
@@ -2606,6 +2624,7 @@ function vMerge(a, b){
     deleted,
     items: items || {at:0, list:null},
     name: (a.name && a.name.v && (a.name.at||0) >= ((b.name && b.name.at)||0)) ? a.name : (b.name && b.name.v ? b.name : a.name),
+    tw: pick(a.tw, b.tw) || {at:0, v:''},
     hidden: Object.assign({}, b.hidden||{}, a.hidden||{}),
     terms: [a.terms||'', b.terms||''].sort().pop()
   };
@@ -2636,6 +2655,7 @@ async function vApply(m){
   lsSet('awaseDeleted', JSON.stringify(m.deleted || {}));
   if(m.items && m.items.list){ lsSet('awaseMyItems', JSON.stringify(m.items.list)); lsSet('awaseMyItemsAt', String(m.items.at||0)); }
   if(m.name && m.name.v){ lsSet('awaseName', m.name.v); lsSet('awaseNameAt', String(m.name.at||0)); }
+  if(m.tw && m.tw.at){ lsSet('awaseTw', m.tw.v||''); lsSet('awaseTwAt', String(m.tw.at)); }
   lsSet('awaseHidden', JSON.stringify(m.hidden || {}));
   if(m.terms) lsSet('awaseTerms', m.terms);
   try{ localStorage.setItem('awasePlanner', JSON.stringify(state)); }catch(e){}   // store.set は使わない（また同期が走るため）
@@ -2887,6 +2907,50 @@ function agreeTerms(){
   if(d) d();
 }
 
+/* ---- マイページ（名前・Xの@ID） ----
+   主催として新しい併せを作ると【主催】欄に自動で入る。招待で参加した併せ（名前・@IDは主催が入力済み）には触らない */
+function showMyPage(){
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>マイページ</h3>
+      <div class="note" style="margin:0 0 8px">Xのアカウント名と@IDを登録しておくと、新しい併せを作ったときに【主催】欄へ自動で入ります。名前はコメントや申請の表示名にも使われます。</div>
+      <div style="font-size:12px;color:var(--sub);margin:4px 0 2px">名前（Xのアカウント名・コスネーム）</div>
+      <input type="text" id="meName" value="${esc(myName())}" placeholder="例：もうふ">
+      <div style="font-size:12px;color:var(--sub);margin:10px 0 2px">Xの@ID</div>
+      <input type="text" id="meTw" value="${esc(myTw())}" placeholder="@ID（プロフィールURL貼り付けOK）" oninput="meTwInput(this)">
+      <button class="btn wide" onclick="saveMyPage()">保存</button>
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+function meTwInput(el){
+  const raw = el.value;
+  const tw = extractTw(raw);
+  if(tw && tw !== raw.trim()){
+    el.value = tw;
+    const nm = extractPasteName(raw);
+    const nameInp = document.getElementById('meName');
+    if(nm && nameInp && !nameInp.value.trim()){ nameInp.value = nm; toast('名前と@IDを自動入力しました'); }
+    else toast('@IDを自動入力しました');
+  }
+}
+function saveMyPage(){
+  const n = (document.getElementById('meName').value || '').trim();
+  let t = (document.getElementById('meTw').value || '').trim();
+  if(t){ const h = xHandle(t); t = h ? '@'+h : ''; }
+  if(n && n !== myName()) setMyName(n);
+  if(t !== myTw()) setMyTw(t);
+  /* まだ【主催】欄が空の自分の併せにも入れる */
+  let changed = false;
+  state.events.forEach(e=>{
+    if(fillHost(e)){ e.updatedAt = Date.now(); changed = true; if(typeof schedulePush==='function') schedulePush(e); }
+  });
+  if(changed){ store.set(state); if(cur && curTab==='info') renderTab(); }
+  closeModal();
+  toast('マイページを保存しました');
+}
+
 /* ---- 表示名の入力（コメント・申請の前に一度だけ） ---- */
 let nameCb = null;
 function ensureName(cb){
@@ -2895,7 +2959,7 @@ function ensureName(cb){
   <div class="modal">
     <div class="box">
       <h3>お名前を教えてください</h3>
-      <div class="note" style="margin:0 0 8px">構図のコメントや申請に表示される名前です（コスネーム推奨）。入力は最初の1回だけで、以降は自動で紐づきます。変更は「保存された併せを開く」内から。</div>
+      <div class="note" style="margin:0 0 8px">構図のコメントや申請に表示される名前です（コスネーム推奨）。入力は最初の1回だけで、以降は自動で紐づきます。変更は「マイページ」から。</div>
       <input type="text" id="nameInput" value="${esc(myName())}" placeholder="例：もうふ" onkeydown="if(event.key==='Enter')saveNameInput()">
       <button class="btn wide" onclick="saveNameInput()">決定</button>
       <button class="btn sec wide" onclick="closeModal();nameCb=null">キャンセル</button>
