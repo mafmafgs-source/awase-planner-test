@@ -3019,13 +3019,31 @@ function revokeSubSlot(slot){
     if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid+'/sub').set(null); }catch(err){} }
   });
 }
+/* ---- 招待メッセージ（受け取った人が一目で「誰から・どの併せ・何役で」か分かる文面を自動で作る） ----
+   role: 'キャラ名役' / 'カメラマン' / '副主催' / null（共通リンク）。日程・場所は募集シートで表示ONのものだけ */
+function inviteMessage(e, role, url, personal){
+  const host = (e.host||'').trim();
+  const title = (e.title||'').trim() || '併せ';
+  const from = host ? `${host}さんから` : '';
+  const lines = [role
+    ? `${from}「${title}」の${role}で招待が届きました！`
+    : `${from}「${title}」への招待が届きました！`];
+  if(secOn(e,'date')){ const d = dateDisp(e); if(d && d!=='日程未定') lines.push('📅 ' + d); }
+  if(secOn(e,'place')){ const pl = (e.studio||e.place||'').trim(); if(pl) lines.push('📍 ' + pl); }
+  lines.push('');
+  lines.push(personal
+    ? 'このリンクを開くだけで参加できます（あなた専用のリンクです。ほかの人には送らないでください）'
+    : 'このリンクを開くだけで参加できます');
+  lines.push(url);
+  return lines.join('\n');
+}
 function copyCameraInvite(i){
   const e = ev();
   const c = e.cameras[i];
   if(!c) return;
   if(!c.ikey){ c.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + c.ikey;
-  copyText(`「${e.title||'併せ'}」にカメラマンとしてご招待します！\nこのリンクを開くだけで参加でき、撮影データの共有欄をご自身で編集できます（あなた専用のリンクです）。\n${url}`);
+  copyText(inviteMessage(e, 'カメラマン', url, true));
 }
 function copySubInvite(i){
   const e = ev();
@@ -3033,8 +3051,7 @@ function copySubInvite(i){
   if(!h) return;
   if(!h.ikey){ h.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + h.ikey;
-  copyText('「' + (e.title||'併せ') + '」の副主催をお願いします！' + '\n' +
-    'このリンクを開くだけで参加でき、募集シートの編集・構図の管理・参加者への連絡まで主催と同じ操作ができます（あなた専用のリンクです）。' + '\n' + url);
+  copyText(inviteMessage(e, '副主催', url, true));
 }
 function copyMemberInvite(i){
   const e = ev();
@@ -3042,8 +3059,7 @@ function copyMemberInvite(i){
   if(!m) return;
   if(!m.ikey){ m.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + m.ikey;
-  const role = m.chara? `${m.chara}役` : 'メンバー';
-  copyText(`「${e.title||'併せ'}」に${role}でご招待します！\nこのリンクを開くだけで参加できます（あなた専用のリンクです）。\n${url}`);
+  copyText(inviteMessage(e, m.chara? `${m.chara}役` : 'メンバー', url, true));
 }
 
 /* ---- 招待（メンバー・カメラマン向け） ---- */
@@ -3071,9 +3087,7 @@ function showInvite(){
   }
   /* 枠キー(ikey)は「リンクをコピー」した時点で発行される（＝その枠は手動claim不可にロック） */
   const url = inviteURL(e);
-  const shareText = url
-    ? `「${e.title||'併せ'}」に招待します！\nこのリンクを開くだけで参加できます。\n${url}`
-    : `「${e.title||'併せ'}」に招待します！\n併せPlannerを開いて「招待コードで参加する」にこのコードを入力してください。\n${e.sync.room}`;
+  const shareText = inviteMessage(e, null, url, false);
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
