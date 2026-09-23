@@ -57,6 +57,11 @@ main{padding:16px;}
 .appbanner span{flex:1; line-height:1.5;}
 .appbanner a{color:var(--tx); font-weight:700; white-space:nowrap; text-decoration:none;
   border:1px solid var(--line); background:var(--card); border-radius:99px; padding:4px 10px;}
+.rptlink{display:block;margin:10px auto 0;background:none;border:none;color:var(--sub);font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:4px}
+.rptlink.in{display:inline;margin:0 0 0 8px;padding:0;font-size:11px}
+.hidimg{display:flex;align-items:center;justify-content:center;background:var(--acbg);color:var(--sub);font-size:11px;text-align:center;padding:6px}
+.rptopt{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.rptopt input{width:auto}
 .appbanner button{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px; line-height:1;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
 .card h3{font-size:13.5px; color:var(--tx); margin-bottom:10px; letter-spacing:.02em;}
@@ -775,7 +780,8 @@ function renderAwase(){
       ? `<div class="note" style="margin-top:18px">あなたは<b>副主催</b>です。主催と同じ操作ができます（主催に退出してもらうことはできません）。</div>`
       : `<div class="note" style="margin-top:18px">このページは表示専用です（編集は主催のみ）。</div>`}
   </div>
-  ${isOwner(e)? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}`;
+  ${isOwner(e)? '' : `<button class="btn ghost wide" onclick="deleteEvent()" style="margin-top:14px">この併せを端末から削除</button>`}
+  ${canReport(e) && !canHost(e)? `<button class="rptlink" onclick="openReport('room')">⚑ この併せの内容を通報する</button>`:''}`;
 }
 
 /* ---- 入力済みの可視化 ---- */
@@ -2060,7 +2066,7 @@ function renderShots(){
     ${owner? '<div class="note" style="margin:0 0 8px">メンバーが撮りたい構図のリクエストです。確認して一覧に追加しましょう。</div>':''}
     ${pend.map((p,i)=>`
       <div class="pend" onclick="openPending(${i})">
-        <img src="${gridSrc(p)}" alt="">
+        ${isHidden(p.id)? '<div class="hidimg" style="width:64px;height:64px;flex:0 0 auto">非表示</div>' : `<img src="${gridSrc(p)}" alt="">`}
         <div class="pbody">
           <div class="who">${esc(p.by)||'名前未設定'}<span class="when">${shortTime(p.at)}</span></div>
           <div class="cap2">${esc(p.cap)||'（コメントなし）'}</div>
@@ -2078,7 +2084,7 @@ function renderShots(){
       ${list.map(({s,i})=>{
         const nc = (e.comments && e.comments[s.id] || []).length;
         return `<div class="shot ${s.done?'done':''} ${s.prio?'p'+s.prio:''} ${shotSel&&shotSel.has(s.id)?'sel':''}" onclick="${shotSel?`toggleShotSel('${s.id}')`:`openShot(${i})`}">
-          <img src="${gridSrc(s)}" alt="">
+          ${isHidden(s.id)? '<div class="hidimg" style="position:absolute;inset:0">通報済み<br>非表示</div>' : `<img src="${gridSrc(s)}" alt="">`}
           <span class="num">${i+1}</span>
           ${s.prio? `<span class="prio p${s.prio}">${PRIO_BADGE[s.prio]}</span>`:''}
           <span class="ck"><span>撮れた！</span></span>
@@ -2169,7 +2175,9 @@ function openShot(i){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>構図 ${i+1} / ${e.shots.length}${s.by?`<span class="opt2">追加：${esc(s.by)}</span>`:''}</h3>
-      <img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:saturate(.6) brightness(1.05);opacity:.35;background:#fff':''}">
+      ${isHidden(s.id)
+        ? `<div class="hidimg" style="height:160px;border-radius:8px;flex-direction:column;gap:8px">通報して非表示にした画像です<button class="btn ghost sm" onclick="unhide('${s.id}');openShot(${i})">表示する</button></div>`
+        : `<img class="prev" src="${fullSrc(s)}" style="${s.done?'filter:saturate(.6) brightness(1.05);opacity:.35;background:#fff':''}">`}
 
       <label class="fl">優先度${owner?'':'（主催のみ変更できます）'}</label>
       <div class="st3">${PRIO_LABELS.map((pl,p)=>
@@ -2183,7 +2191,7 @@ function openShot(i){
 
       <label class="fl">コメント（撮りたい度・撮影の相談など）</label>
       <div class="cmts">
-        ${cs.length? cs.map(c=>`<div class="cmt"><span class="who">${esc(c.name)}</span><span class="when">${shortTime(c.at)}</span><br>${esc(c.text)}</div>`).join('')
+        ${cs.length? cs.map(c=>`<div class="cmt"><span class="who">${esc(c.name)}</span><span class="when">${shortTime(c.at)}</span>${canReport(e) && c.id? `<button class="rptlink in" onclick="openReport('comment','${esc(c.id)}')">通報</button>`:''}<br>${isHidden(c.id)? '<span style="color:var(--sub)">（通報して非表示にしたコメント）</span>' : esc(c.text)}</div>`).join('')
           : '<div class="note" style="margin:2px 0 6px">まだコメントはありません</div>'}
       </div>
       <div class="row" style="margin-top:6px">
@@ -2195,6 +2203,7 @@ function openShot(i){
         ${s.done? 'まだだった…に戻す' : '撮れた！'}</button>
       ${owner?`<button class="btn ghost wide" onclick="delShot(${i})">この構図を削除</button>`:''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      ${canReport(e) && s.byId!==clientId()? `<button class="rptlink" onclick="openReport('shot','${esc(s.id)}')">⚑ この構図を通報する</button>`:''}
     </div>
   </div>`;
 }
@@ -2277,7 +2286,7 @@ function openPending(i){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <h3>構図リクエスト<span class="opt2">${esc(p.by)||'名前未設定'} ${shortTime(p.at)}</span></h3>
-      <img class="prev" src="${fullSrc(p)}">
+      ${isHidden(p.id)? '<div class="hidimg" style="height:120px;border-radius:8px">通報して非表示にした画像です</div>' : `<img class="prev" src="${fullSrc(p)}">`}
       ${p.cap?`<div style="font-size:13.5px;margin-bottom:8px">${esc(p.cap)}</div>`:''}
       ${owner
         ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="approvePending(${i})">一覧に追加する</button>
@@ -2285,6 +2294,7 @@ function openPending(i){
         : (mine? `<button class="btn ghost wide" onclick="rejectPending(${i})">リクエストを取り消す</button>`
                : `<div class="note">主催の確認待ちです</div>`)}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      ${canReport(e) && !mine? `<button class="rptlink" onclick="openReport('shot','${esc(p.id)}')">⚑ このリクエストを通報する</button>`:''}
     </div>
   </div>`;
 }
@@ -2305,6 +2315,90 @@ function rejectPending(i){
   e.pending.splice(i,1);
   if(p.url) deleteShotImage(e.sync.room, p.id);
   savePending(); closeModal(); renderTab();
+}
+
+/* ---- 通報（App Store / Google Play の UGC 要件） ----
+   構図・リクエスト・コメント・併せ全体を理由つきで運営に通報する。運営は admin.php で確認して削除できる。
+   通報した人の端末では、その画像・コメントをすぐ非表示にできる（端末ごと・localStorage）。 */
+const REPORT_REASONS = [
+  ['sexual','性的・わいせつな内容'], ['violence','暴力的・グロテスクな内容'], ['rights','権利侵害（他人の写真の無断転載など）'],
+  ['privacy','個人情報が書かれている'], ['harassment','嫌がらせ・誹謗中傷'], ['other','その他']
+];
+function hiddenMap(){ try{ return JSON.parse(localStorage.getItem('awaseHidden'))||{}; }catch(e){ return {}; } }
+function isHidden(id){ return !!id && !!hiddenMap()[id]; }
+function setHidden(id, on){
+  const m = hiddenMap();
+  if(on) m[id] = Date.now(); else delete m[id];
+  try{ localStorage.setItem('awaseHidden', JSON.stringify(m)); }catch(e){}
+}
+function unhide(id){ setHidden(id, false); renderTab(); }
+/* サーバーで共有している併せだけ通報できる（WEB版で自分が作った併せは端末の中だけなので対象外） */
+function canReport(e){ return !!e && syncReady() && !liteHost(e) && !!(e.sync && e.sync.room); }
+function openReport(kind, id){
+  const e = ev();
+  if(!canReport(e)) return;
+  const what = kind==='shot' ? 'この画像' : kind==='comment' ? 'このコメント' : 'この併せの内容';
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>${what}を通報</h3>
+      <div class="note" style="margin:0 0 8px">運営が内容を確認し、利用規約に反する場合は削除します。通報したことは相手に知らされません。</div>
+      ${REPORT_REASONS.map(([k,l])=>`<label class="rptopt"><input type="radio" name="rptReason" value="${k}">${l}</label>`).join('')}
+      <label class="fl">くわしい状況（任意）</label>
+      <textarea id="rptNote" rows="3" maxlength="500" placeholder="例：私が撮影した写真が無断で使われています"></textarea>
+      ${kind!=='room'? `<label class="rptopt" style="border:none"><input type="checkbox" id="rptHide" checked>${what}を自分の画面で非表示にする</label>`:''}
+      <button class="btn wide" onclick="sendReport('${kind}','${esc(id||'')}')">通報する</button>
+      <button class="btn sec wide" onclick="closeModal()">キャンセル</button>
+    </div>
+  </div>`;
+}
+async function sendReport(kind, id){
+  const e = ev();
+  const r = document.querySelector('input[name=rptReason]:checked');
+  if(!r){ toast('理由を選んでください'); return; }
+  const note = (document.getElementById('rptNote').value||'').trim().slice(0,500);
+  const hide = !!(document.getElementById('rptHide') && document.getElementById('rptHide').checked);
+  try{
+    await apiPost({op:'report', r:e.sync.room, kind, id: id||e.sync.room, reason:r.value, note, by:clientId()});
+    if(hide && id) setHidden(id, true);
+    closeModal(); renderTab();
+    toast('通報しました。運営が確認します');
+  }catch(err){
+    console.warn(err);
+    toast(err && err.status===429 ? '通報の回数が多すぎます。時間をおいてお試しください' : '通報を送れませんでした。電波の良い場所でもう一度お試しください');
+  }
+}
+
+/* ---- 利用規約への同意（初回のみ・規約を改定したら TERMS_VER を上げて再同意） ---- */
+const TERMS_VER = '2026-09-23';
+let termsDone = null;
+function termsOk(){ try{ return localStorage.getItem('awaseTerms') === TERMS_VER; }catch(e){ return true; } }
+function showTerms(done){
+  termsDone = done;
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal">
+    <div class="box">
+      <h3>併せPlanner へようこそ</h3>
+      <div style="font-size:13.5px;line-height:1.8">
+        はじめに、<a href="${WEB_BASE}terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>をご確認ください。<br>
+        特に、次のような内容は<b>投稿できません</b>（見つけた場合は削除します）。
+        <ul style="margin:6px 0 6px 1.2em">
+          <li>性的・わいせつな画像や文章</li>
+          <li>他人が撮影した写真・イラストの無断転載</li>
+          <li>本名・住所・連絡先などの個人情報</li>
+          <li>嫌がらせ・誹謗中傷</li>
+        </ul>
+        不適切な内容を見つけたら、画面の「通報する」から知らせてください。
+      </div>
+      <button class="btn wide" onclick="agreeTerms()">同意して使う</button>
+    </div>
+  </div>`;
+}
+function agreeTerms(){
+  try{ localStorage.setItem('awaseTerms', TERMS_VER); }catch(e){}
+  closeModal();
+  const d = termsDone; termsDone = null;
+  if(d) d();
 }
 
 /* ---- 表示名の入力（コメント・申請の前に一度だけ） ---- */
@@ -2372,7 +2466,7 @@ function b64u(str){
 }
 async function apiPost(obj){
   const r = await fetch(SYNC_API, {method:'POST', headers:{'Content-Type':'text/plain'}, body: b64u(JSON.stringify(obj))});
-  if(!r.ok) throw new Error('api '+r.status);
+  if(!r.ok) throw Object.assign(new Error('api '+r.status), {status:r.status});
   return r.json();
 }
 
@@ -2412,8 +2506,16 @@ function roomRef(room){
       delete R.failed[path];
       R.pending++; R.wseq++;
       R.chain = R.chain.then(()=>apiPost({op:'set', r:room, p:path, val}))
-        .then(res=>{ if(res && res.v===R.v+1) R.v = res.v; }) // 間に他人の書き込みがあれば次の受信で取り直す
-        .catch(err=>{ console.warn('push error:', err); if(!(path in R.failed)) R.failed[path] = val; })
+        .then(res=>{
+          if(res && res.scrub){ R.v = -1; return; } // 運営が削除した内容をサーバーが取り除いた → 次の受信で全体を取り直す
+          if(res && res.v===R.v+1) R.v = res.v;      // 間に他人の書き込みがあれば次の受信で取り直す
+        })
+        .catch(err=>{
+          console.warn('push error:', err);
+          /* 410＝運営が削除した併せ（送り直さない）。それ以外は電波が戻ったら送り直す */
+          if(err && err.status===410) return;
+          if(!(path in R.failed)) R.failed[path] = val;
+        })
         .finally(()=>{ R.pending--; });
       return R.chain;
     },
@@ -2968,19 +3070,23 @@ function importJSON(){
   });
   store.set(state);
 
-  // 招待リンク (#join=xxx / #join=xxx&m=枠キー) から開いた場合は自動参加、それ以外は要項ページを直接表示
-  const m = location.hash.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
-  if(m && syncReady()){
-    history.replaceState(null,'',location.pathname+location.search);
-    joinByCode(m[1], m[2]);
-  }else{
-    openStart();
-  }
+  const start = ()=>{
+    // 招待リンク (#join=xxx / #join=xxx&m=枠キー) から開いた場合は自動参加、それ以外は要項ページを直接表示
+    const m = location.hash.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
+    if(m && syncReady()){
+      history.replaceState(null,'',location.pathname+location.search);
+      joinByCode(m[1], m[2]);
+    }else{
+      openStart();
+    }
 
-  // 開いた時点で全併せを自動同期（LINE的な挙動・操作不要）
-  if(syncReady()){
-    state.events.forEach(e=>connectEvent(e));
-  }
+    // 開いた時点で全併せを自動同期（LINE的な挙動・操作不要）
+    if(syncReady()){
+      state.events.forEach(e=>connectEvent(e));
+    }
+  };
+  /* 初回（または規約の改定後）は、利用規約に同意してから始める */
+  if(termsOk()) start(); else showTerms(start);
   /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
