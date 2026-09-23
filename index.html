@@ -169,25 +169,24 @@ textarea{resize:vertical;}
   font-size:11px; font-weight:800; color:var(--sub);
 }
 .mychip:active{opacity:.7;}
-/* おすすめ（アフィリエイト） */
-.affrow{display:flex; gap:10px; align-items:center; padding:9px 0; border-bottom:1px dashed var(--line);}
-.affrow:last-child{border-bottom:none;}
-.affthumb{
-  flex:0 0 52px; width:52px; height:52px; border-radius:6px; object-fit:cover;
-  background:var(--acbg); border:1px solid var(--line);
-}
-.affbody{flex:1; min-width:0;}
-.affname{font-size:13.5px; font-weight:700; line-height:1.4;}
-.affnote{font-size:11.5px; color:var(--sub); margin-top:2px; line-height:1.5;}
-.affbtns{flex:0 0 92px; display:flex; flex-direction:column; gap:4px;}
-.affbtn{
-  display:block; text-align:center; font-size:10.5px; font-weight:700;
-  border:1px solid var(--tx); border-radius:5px; padding:4px 8px;
-  color:#fff; background:var(--tx); text-decoration:none; cursor:pointer; font-family:inherit;
-}
-.affbtn.rkt{background:var(--card); color:var(--tx);}
-.affbtn.add{background:var(--card); color:var(--sub); border-color:var(--line);}
-.affbtn:active{opacity:.7;}
+/* 差し入れを探す（アフィリエイトは控えめに：ボタンにせず小さな文字リンク） */
+.sqres{margin:10px 0 2px; padding:10px 12px; background:var(--acbg); border-radius:8px; font-size:13px; line-height:1.7;}
+.sqres b{font-weight:700;}
+.sqlink{color:var(--tx); text-decoration:underline; text-underline-offset:2px;}
+.sqadd{background:none; border:none; color:var(--sub); font-size:12px; cursor:pointer; font-family:inherit; padding:0; text-decoration:underline; text-underline-offset:2px;}
+.pr{display:inline-block; font-size:9.5px; color:var(--sub); border:1px solid var(--line); border-radius:3px; padding:0 4px; margin-left:4px; vertical-align:1px; line-height:1.5;}
+.sqchips{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
+.sqchip{background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 11px; font-size:12.5px; color:var(--tx); cursor:pointer; font-family:inherit;}
+.sqchip .rk{color:var(--sub); font-size:11px; margin-right:4px;}
+.sqmore{margin-top:14px; border-top:1px solid var(--line); padding-top:10px;}
+.sqmore summary{font-size:12.5px; color:var(--sub); cursor:pointer;}
+.sqcat{font-size:12px; font-weight:700; color:var(--sub); margin:12px 0 2px;}
+.sqrow{padding:7px 0; border-bottom:1px dashed var(--line); font-size:13px;}
+.sqrow:last-child{border-bottom:none;}
+.sqrow .nt{font-size:11.5px; color:var(--sub); margin-top:1px;}
+.sqrow .lk{font-size:11.5px; color:var(--sub); margin-top:2px;}
+.sqrow .lk a{color:var(--sub);}
+.prnote{font-size:10.5px; color:var(--sub); margin-top:12px; line-height:1.6;}
 /* 撮影データの受け渡し */
 .waitrow{display:flex; align-items:center; gap:8px; margin-top:8px;}
 .waittag{
@@ -1772,9 +1771,9 @@ function copyRemind(i){
   copyText(`${name?name+'さん、':''}先日の「${e.title||'併せ'}」お疲れさまでした！\n撮影データ、お手すきの際に共有いただけるとうれしいです。よろしくお願いします！`);
 }
 
-/* ---- おすすめ（アフィリエイト・忘れ物タブ下部） ----
-   差し入れランキング（sashiire-ranking）のranking.jsonを毎日1回取得して表示する。
-   取得できない時はAFF_ITEMSの内蔵リストにフォールバック（AFF_TAG未設定ならプレビュー表示）。
+/* ---- 差し入れを探す（忘れ物タブ下部・アフィリエイトは控えめに） ----
+   売れ筋は差し入れランキング（sashiire-ranking）の ranking.json を毎日1回取得して表示する。
+   取得できない時は AFF_ITEMS の内蔵リストにフォールバック。
    ※アソシエイト側に配信サイト（jyounetsu.site等）の登録が必要 */
 const RANKING_URL = 'https://mafmafgs-source.github.io/sashiire-ranking/ranking.json';
 let rankingData = null;
@@ -1797,64 +1796,80 @@ function loadRanking(){
     })
     .catch(()=>{});
 }
-const AFF_TAG = '';
+/* アフィリエイトの識別子（差し入れランキング sashiire-ranking と同じ）。
+   Amazon は専用トラッキングID、楽天は もしも経由（検索結果ページへのリンク） */
+const AMAZON_TAG = 'sashiire01-22';
+const MOSHIMO_RAKUTEN = 'https://af.moshimo.com/af/c/click?a_id=1500380&p_id=54&pc_id=54&pl_id=27059&url=';
+function amazonSearchUrl(q){ return 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(q) + '&tag=' + AMAZON_TAG; }
+function rakutenSearchUrl(q){ return MOSHIMO_RAKUTEN + encodeURIComponent('https://search.rakuten.co.jp/search/mall/' + encodeURIComponent(q) + '/'); }
 const AFF_ITEMS = [
-  {cat:'sweets', name:'個包装のお菓子詰め合わせ', note:'配りやすく衣装を汚しにくい個包装が鉄板', q:'お菓子 個包装 詰め合わせ', rakuten:''},
-  {cat:'sweets', name:'ミンティア・タブレット', note:'かさばらない気配り枠', q:'ミンティア', rakuten:''},
-  {cat:'sweets', name:'個包装ラムネ', note:'ブドウ糖補給。長丁場の集中力に', q:'ラムネ 個包装', rakuten:''},
-  {cat:'sweets', name:'個包装のど飴', note:'乾燥するスタジオ・声出し対策', q:'のど飴 個包装', rakuten:''},
-  {cat:'goods', name:'めぐリズム 蒸気でホットアイマスク', note:'撮影後の目の疲れに。差し入れの大定番', q:'めぐりズム ホットアイマスク', rakuten:''},
-  {cat:'goods', name:'汗拭きシート（無香料）', note:'夏のスタジオ・イベントで喜ばれ率が高い', q:'汗拭きシート 無香料', rakuten:''},
-  {cat:'goods', name:'ハンドクリーム（無香料）', note:'小さめサイズが荷物に優しい', q:'ハンドクリーム 無香料 ミニ', rakuten:''},
-  {cat:'goods', name:'冷感タオル', note:'夏の屋外撮影の救世主', q:'冷感タオル', rakuten:''}
+  {cat:'sweets', name:'個包装のお菓子詰め合わせ', note:'配りやすく衣装を汚しにくい個包装が鉄板', q:'お菓子 個包装 詰め合わせ'},
+  {cat:'sweets', name:'ミンティア・タブレット', note:'かさばらない気配り枠', q:'ミンティア'},
+  {cat:'sweets', name:'個包装ラムネ', note:'ブドウ糖補給。長丁場の集中力に', q:'ラムネ 個包装'},
+  {cat:'sweets', name:'個包装のど飴', note:'乾燥するスタジオ・声出し対策', q:'のど飴 個包装'},
+  {cat:'goods', name:'めぐリズム 蒸気でホットアイマスク', note:'撮影後の目の疲れに。差し入れの大定番', q:'めぐりズム ホットアイマスク'},
+  {cat:'goods', name:'汗拭きシート（無香料）', note:'夏のスタジオ・イベントで喜ばれ率が高い', q:'汗拭きシート 無香料'},
+  {cat:'goods', name:'ハンドクリーム（無香料）', note:'小さめサイズが荷物に優しい', q:'ハンドクリーム 無香料 ミニ'},
+  {cat:'goods', name:'冷感タオル', note:'夏の屋外撮影の救世主', q:'冷感タオル'}
 ];
+
+/* ---- みんなが探している差し入れ ----
+   「差し入れを探す」で検索された言葉をサーバーで数え、3人以上が探した言葉だけをランキングにする（api ?sr=1）。
+   チップを押しただけでは数えない（上位がさらに上がり続けるのを防ぐ） */
+let sqQuery = '';
+let sqRank = null, sqRankTried = false;
+function loadSqRank(){
+  if(sqRankTried || !syncReady()) return;
+  sqRankTried = true;
+  fetch(SYNC_API + '?sr=1', {cache:'no-store'})
+    .then(r=>r.ok? r.json() : null)
+    .then(d=>{ if(d && Array.isArray(d.items)){ sqRank = d.items; if(curTab==='items') renderTab(); } })
+    .catch(()=>{});
+}
+function sqSearch(term, record){
+  if(term==null){ const el = document.getElementById('sqInput'); term = el ? el.value : ''; }
+  term = String(term||'').trim().replace(/\s+/g,' ').slice(0,30);
+  if(!term) return;
+  sqQuery = term;
+  if(record !== false && syncReady()) apiPost({op:'sq', term}).catch(()=>{});
+  renderTab();
+}
+function sqLinks(q){
+  return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">Amazon</a>・<a class="sqlink" href="${esc(rakutenSearchUrl(q))}" target="_blank" rel="sponsored noopener">楽天</a>`;
+}
 function affHTML(){
-  /* ランキングデータがあればそちらを優先（毎朝自動更新・季節入替・成果リンク入り） */
-  if(rankingData){
-    return rankingData.categories.map(cat=>`<div class="card">
-      <h3>${esc(cat.title)} <span class="cnt">広告（アフィリエイトリンク）</span></h3>
-      ${cat.items.map(it=>`<div class="affrow">
-        ${it.image?`<img class="affthumb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`:''}
-        <div class="affbody">
-          <div class="affname">${esc(it.label)}</div>
-          <div class="affnote">${esc(it.note)}</div>
-        </div>
-        <div class="affbtns">
-          <a class="affbtn" href="${esc(it.amazonUrl)}" target="_blank" rel="sponsored noopener">Amazon</a>
-          ${it.rakutenUrl?`<a class="affbtn rkt" href="${esc(it.rakutenUrl)}" target="_blank" rel="sponsored noopener">楽天</a>`:''}
-          <button class="affbtn add" data-n="${esc(it.label)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button>
-        </div>
-      </div>`).join('')}
-    </div>`).join('')
-    + `<div class="note" style="margin:2px 2px 10px">${esc(rankingData.updated)}更新（毎日自動更新）。Amazonのアソシエイトとして、当サイト運営者は適格販売により収入を得ています。</div>`;
-  }
-  /* フォールバック: 内蔵リスト。AFF_TAG未設定ならプレビュー表示（リンクにタグが付かず収益は発生しない） */
-  const tagged = !!AFF_TAG;
-  const cats = [['sweets','お菓子の定番'],['goods','喜ばれる実用系']];
-  const cards = cats.map(([cat,title])=>{
-    const items = AFF_ITEMS.filter(x=>x.cat===cat);
-    if(!items.length) return '';
-    return `<div class="card">
-      <h3>${title} <span class="cnt">広告（アフィリエイトリンク）</span></h3>
-      ${items.map(it=>{
-        const gi = AFF_ITEMS.indexOf(it);
-        return `<div class="affrow">
-        <div class="affbody">
-          <div class="affname">${esc(it.name)}</div>
-          <div class="affnote">${esc(it.note)}</div>
-        </div>
-        <div class="affbtns">
-          <a class="affbtn" href="https://www.amazon.co.jp/s?k=${encodeURIComponent(it.q)}${tagged?`&tag=${encodeURIComponent(AFF_TAG)}`:''}" target="_blank" rel="sponsored noopener">Amazon</a>
-          ${it.rakuten?`<a class="affbtn rkt" href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>`:''}
-          <button class="affbtn add" onclick="addAffToList(${gi})">リストに入れる</button>
-        </div>
-      </div>`;
-      }).join('')}
-    </div>`;
-  }).join('');
-  return cards + (tagged
-    ? `<div class="note" style="margin:2px 2px 10px">Amazonのアソシエイトとして、当サイト運営者は適格販売により収入を得ています。</div>`
-    : `<div class="note" style="margin:2px 2px 10px">プレビュー表示中（AFF_TAG未設定のため、リンクを開いても収益は発生しません）</div>`);
+  loadSqRank();
+  const rank = (sqRank||[]).slice(0,10);
+  /* 売れ筋（毎朝自動更新の ranking.json。取れないときは内蔵リスト） */
+  const cats = rankingData
+    ? rankingData.categories.map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
+    : [['sweets','お菓子の定番'],['goods','喜ばれる実用系']].map(([k,t])=>({title:t, items:AFF_ITEMS.filter(x=>x.cat===k).map(it=>({name:it.name, note:it.note, amazon:amazonSearchUrl(it.q), rakuten:rakutenSearchUrl(it.q)}))}));
+  return `<div class="card">
+    <h3>差し入れを探す</h3>
+    <div class="row">
+      <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：ホットアイマスク、個包装のお菓子" onkeydown="if(event.key==='Enter')sqSearch()">
+      <button class="btn sec sm fix" onclick="sqSearch()">探す</button>
+    </div>
+    ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を ${sqLinks(sqQuery)} で見る<span class="pr">PR</span><br>
+      <button class="sqadd" data-n="${esc(sqQuery)}" onclick="addNameToList(this.dataset.n)">忘れ物リストに入れる</button></div>`:''}
+
+    <div class="secttl" style="margin-top:16px">みんなが探している差し入れ</div>
+    ${rank.length
+      ? `<div class="sqchips">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
+      : `<div class="note" style="margin:4px 0 0">集計中です。上の検索で探した差し入れが、ここのランキングに反映されます（3人以上が探した言葉だけを表示）。</div>`}
+
+    <details class="sqmore">
+      <summary>売れ筋から選ぶ${rankingData? `（${esc(rankingData.updated)}更新）`:''}</summary>
+      ${cats.map(c=>`<div class="sqcat">${esc(c.title)}</div>
+        ${c.items.map(it=>`<div class="sqrow">
+          <div>${esc(it.name)}</div>
+          ${it.note?`<div class="nt">${esc(it.note)}</div>`:''}
+          <div class="lk"><a href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">Amazon</a>${it.rakuten?`・<a href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>`:''}<span class="pr">PR</span>
+            ・<button class="sqadd" data-n="${esc(it.name)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
+        </div>`).join('')}`).join('')}
+    </details>
+    <div class="prnote">PR：Amazon・楽天のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト・楽天アフィリエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
+  </div>`;
 }
 function addNameToList(name){
   name = String(name||'').slice(0,30);
@@ -1865,10 +1880,6 @@ function addNameToList(name){
   items.push({id:uid(), text:name, done:false});
   setMyItems(items); renderTab();
   toast('忘れ物リストに入れました');
-}
-function addAffToList(gi){
-  const it = AFF_ITEMS[gi];
-  if(it) addNameToList(it.name);
 }
 
 /* ---- じぶんの忘れ物チェック（専用タブ） ----
