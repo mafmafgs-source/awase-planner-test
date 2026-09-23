@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>併せPlanner</title>
+<!-- ホーム画面に追加（iPhone の Safari はしばらく開かないとデータを消すことがあるが、ホーム画面から開けば消えにくい） -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="併せPlanner">
 <style>
 :root{
   --ac:#1a1a1a; --acbg:#f2f2f2;
@@ -545,6 +553,7 @@ function save(pushRemote=true){
   updateSavedBar();
   if(pushRemote && e) schedulePush(e);
   bkHintCheck(e);
+  askPersist();
 }
 
 /* ---- date utils ---- */
@@ -624,6 +633,7 @@ function showList(){
           <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">バックアップ・ほかの端末と連携</button>
           <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ・つなぐ</button>
           <div style="margin:12px 0 6px;font-size:12px;color:var(--sub)">ファイルでのバックアップ</div>`:''}
+          ${canA2hs()? `<div style="margin-bottom:10px"><button class="btn ghost sm" onclick="closeModal();showA2hs()">ホーム画面に追加する（データが消えにくくなります）</button></div>` : ''}
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
           <div style="margin-top:10px;font-size:12px"><a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener" style="color:var(--sub)">プライバシーポリシー</a></div>
@@ -2741,6 +2751,9 @@ function showBkCode(first){
       <div style="background:var(--acbg);border-radius:10px;padding:14px;margin:12px 0 6px;text-align:center;font-size:20px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
       <div class="note" style="margin:0 0 10px">スクリーンショットかメモで控えてください。このコードを知っている人はデータを使えるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
       <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
+      ${canA2hs()? `<div class="secttl" style="margin-top:14px">データを消えにくくする</div>
+      <div class="note" style="margin:0 0 8px">${isIOS()? 'iPhone の Safari は、しばらく開かないとサイトのデータを消すことがあります。' : ''}ホーム画面に追加して、そこから開くと消えにくくなります。</div>
+      <button class="btn sec wide" onclick="showA2hs()">ホーム画面に追加する</button>` : ''}
       <div class="secttl" style="margin-top:14px">PC・タブレットでも使う</div>
       <div class="note" style="margin:0 0 8px">ほかの端末でこのQRコードを読み込むか、リンクを開くと、この端末と同じデータになり、以後は自動で揃います（主催の権限もそのまま使えます）。<b>自分の端末だけ</b>で開いてください。</div>
       <div id="vQr" style="display:flex;justify-content:center;margin:6px 0 10px;min-height:40px"></div>
@@ -2796,7 +2809,8 @@ function vMarkDeleted(id){
 }
 /* 復元コードの案内を出すきっかけ（どれか1回出たら、あとは設定からだけ）:
    ①主催として初めて招待するとき（招待ボタン） ②招待リンクで参加したとき（枠に入った／名前を入れた直後）
-   ③WEB版で募集シートを書き始めて2分たったとき（作業を邪魔しないよう、画面下の小さな帯で） */
+   ③自分で作った併せを書き始めて2分たったとき（作業を邪魔しないよう、画面下の小さな帯で）
+   ④マイページを保存したとき */
 function bkNoticed(){ try{ return !!localStorage.getItem('awaseBkNoticed'); }catch(e){ return true; } }
 function bkMarkNoticed(){ try{ localStorage.setItem('awaseBkNoticed', '1'); }catch(e){} }
 function bkNoticeAfterJoin(){
@@ -2808,7 +2822,7 @@ function bkNoticeAfterJoin(){
 }
 let bkHintStart = 0;
 function bkHintCheck(e){
-  if(!LITE || bkNoticed() || !bkAvailable() || !e || !liteHost(e) || !hasContent(e)) return;
+  if(bkNoticed() || !bkAvailable() || !e || !isOwner(e) || !hasContent(e)) return;
   if(!bkHintStart){ bkHintStart = Date.now(); return; }
   if(Date.now() - bkHintStart < 120000) return;
   bkMarkNoticed();
@@ -2824,6 +2838,98 @@ function bkHintBar(){
     <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
   document.body.appendChild(el);
 }
+/* ---- データを消えにくくする（ブラウザ版） ----
+   ・persist(): 端末の空きが減ってもこのサイトのデータを消さないよう、ブラウザに頼む（許可するかはブラウザが決める）
+   ・iPhone の Safari は 7 日間開かないとサイトのデータを消すことがある → ホーム画面に追加して開けば消えない。
+     ただし iPhone ではホーム画面版と Safari の保存場所が別なので、復元コードで引き継いでもらう
+   ・Android の Chrome はホーム画面版も同じ保存場所（引き継ぎ不要） */
+function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function isIOS(){ const ua = navigator.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); }
+let persistAsked = false;
+function askPersist(){
+  if(persistAsked || !state.events.some(hasContent)) return;
+  persistAsked = true;
+  try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) return navigator.storage.persist(); }).catch(()=>{}); }catch(e){}
+}
+let a2hsEvt = null;
+window.addEventListener('beforeinstallprompt', ev0=>{ ev0.preventDefault(); a2hsEvt = ev0; });
+function canA2hs(){ return !isStandalone() && (isIOS() || !!a2hsEvt); }
+function showA2hs(){
+  if(!isIOS()){
+    if(!a2hsEvt){ toast('このブラウザではホーム画面に追加できません'); return; }
+    a2hsEvt.prompt();
+    a2hsEvt.userChoice.finally(()=>{ a2hsEvt = null; });
+    return;
+  }
+  const code = bkAvailable()? bkCode() : '';
+  if(code) vSync();   // 引き継ぐ前に最新をバックアップしておく
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>ホーム画面に追加する</h3>
+      <div style="font-size:13.5px;line-height:1.8">
+        iPhone の Safari は、しばらく開かないとサイトのデータ（併せの一覧・主催の権限など）を消すことがあります。ホーム画面に追加して、<b>そこから開く</b>と消えにくくなります。
+      </div>
+      ${code? `<div class="note" style="margin:10px 0 6px">ホーム画面から開いたときは Safari とデータの置き場所が別になるので、今のデータを<b>復元コード</b>で引き継ぎます。</div>
+      <div class="secttl" style="margin-top:12px">① 復元コードをコピー</div>
+      <div style="background:var(--acbg);border-radius:10px;padding:10px;margin:6px 0;text-align:center;font-size:18px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
+      <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
+      <div class="secttl" style="margin-top:12px">② ホーム画面に追加</div>
+      <div class="note" style="margin:4px 0">Safari の共有メニューから「ホーム画面に追加」を選びます。</div>
+      <div class="secttl" style="margin-top:12px">③ ホーム画面のアイコンから開く</div>
+      <div class="note" style="margin:4px 0 10px">最初に出る画面で、コピーしたコードを入れて「引き継ぐ」を押すと、今のデータがそのまま使えます。</div>`
+      : `<div class="note" style="margin:10px 0">Safari の共有メニューから「ホーム画面に追加」を選び、以後はホーム画面のアイコンから開いてください。</div>`}
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+/* iPhone のホーム画面版を初めて開いたとき（まだ何も無い）: Safari で使っていたデータを引き継ぐか聞く */
+function standaloneWelcome(tries){
+  if(!isStandalone() || !isIOS() || lsGet('awaseHomeInit')) return;
+  if(document.querySelector('#modalHost .modal')){ if((tries||0) < 40) setTimeout(()=>standaloneWelcome((tries||0)+1), 1500); return; }
+  lsSet('awaseHomeInit', '1');
+  if(state.events.some(hasContent) || !bkAvailable()) return;
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal">
+    <div class="box">
+      <h3>Safari で使っていたデータを引き継ぎますか？</h3>
+      <div style="font-size:13.5px;line-height:1.8">ホーム画面から開いた併せPlannerは、Safari とデータの置き場所が別です。Safari でコピーした<b>復元コード</b>を入れると、併せの一覧や主催の権限をそのまま使えます。</div>
+      <input type="text" id="homeCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" style="margin-top:10px">
+      <button class="btn sec wide" onclick="homePaste()">コピーしたコードを貼り付け</button>
+      <button class="btn wide" onclick="homeLink()">引き継ぐ</button>
+      <button class="btn sec wide" onclick="closeModal()">新しく始める</button>
+      <div class="note" style="margin-top:6px">あとからでも「保存された併せを開く」→「設定・バックアップ」→「コードで引き継ぐ・つなぐ」でできます。</div>
+    </div>
+  </div>`;
+}
+async function homePaste(){
+  try{
+    const t = await navigator.clipboard.readText();
+    const m = String(t||'').toUpperCase().match(/[A-Z0-9]{4}-?[A-Z0-9]{4}-?[A-Z0-9]{4}-?[A-Z0-9]{4}/);
+    if(m){ document.getElementById('homeCode').value = bkFormat(bkNorm(m[0])); return; }
+    toast('コピーしたものに復元コードが見つかりません');
+  }catch(e){ toast('貼り付けできませんでした。入力欄を長押しして貼り付けてください'); }
+}
+function homeLink(){
+  const c = (document.getElementById('homeCode').value || '').trim();
+  if(!c){ toast('復元コードを入れてください'); return; }
+  closeModal();
+  vLinkWithCode(c);
+}
+/* iPhone の Safari で、中身のある併せがあれば 1 回だけ「ホーム画面に追加」を小さく案内する */
+function a2hsHint(){
+  if(!isIOS() || isStandalone() || lsGet('awaseA2hsNoticed') || !state.events.some(hasContent)) return;
+  if(document.getElementById('bkHint') || document.querySelector('#modalHost .modal')) return;
+  lsSet('awaseA2hsNoticed', '1');
+  const el = document.createElement('div');
+  el.id = 'bkHint';
+  el.className = 'bkhint';
+  el.innerHTML = `<span>📱 ホーム画面に追加すると、データが消えにくくなります</span>
+    <button class="go" onclick="document.getElementById('bkHint').remove();showA2hs()">方法</button>
+    <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
+  document.body.appendChild(el);
+}
+
 /* ---- 通報（App Store / Google Play の UGC 要件） ----
    構図・リクエスト・コメント・併せ全体を理由つきで運営に通報する。運営は admin.php で確認して削除できる。
    通報した人の端末では、その画像・コメントをすぐ非表示にできる（端末ごと・localStorage）。 */
@@ -2950,6 +3056,7 @@ function saveMyPage(){
   if(changed){ store.set(state); if(cur && curTab==='info') renderTab(); }
   closeModal();
   toast('マイページを保存しました');
+  if(!bkNoticed() && bkAvailable()){ bkMarkNoticed(); setTimeout(()=>showBkCode(true), 500); }
 }
 
 /* ---- 表示名の入力（コメント・申請の前に一度だけ） ---- */
@@ -3677,6 +3784,10 @@ function importJSON(){
   if(termsOk() || (LITE && !joining)) start(); else showTerms(start);
   /* 起動したら、ほかの端末の変更を取りにいく（自動バックアップ・端末の連携） */
   setTimeout(vSync, 1500);
+  /* データを消えにくくする: ブラウザに頼む／iPhone のホーム画面版の初回は引き継ぎを聞く／Safari なら 1 回だけ案内 */
+  setTimeout(askPersist, 2000);
+  if(!linkM && !joining) setTimeout(standaloneWelcome, 1200);
+  setTimeout(a2hsHint, 20000);
   /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
