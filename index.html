@@ -62,6 +62,12 @@ main{padding:16px;}
 .hidimg{display:flex;align-items:center;justify-content:center;background:var(--acbg);color:var(--sub);font-size:11px;text-align:center;padding:6px}
 .rptopt{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
 .rptopt input{width:auto}
+.bkhint{position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom, 0px) + 64px); z-index:50;
+  display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.12); padding:10px 10px 10px 14px; font-size:12.5px; line-height:1.5; max-width:560px; margin:0 auto;}
+.bkhint span{flex:1;}
+.bkhint .go{font:inherit; font-weight:700; border:1px solid var(--tx); background:var(--tx); color:var(--card); border-radius:99px; padding:5px 12px; cursor:pointer; white-space:nowrap;}
+.bkhint .x{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px;}
 .appbanner button{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px; line-height:1;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
 .card h3{font-size:13.5px; color:var(--tx); margin-bottom:10px; letter-spacing:.02em;}
@@ -524,6 +530,7 @@ function save(pushRemote=true){
   store.set(state);
   updateSavedBar();
   if(pushRemote && e) schedulePush(e);
+  bkHintCheck(e);
 }
 
 /* ---- date utils ---- */
@@ -2594,6 +2601,36 @@ function showBkCode(first){
     </div>
   </div>`;
 }
+/* 復元コードの案内を出すきっかけ（どれか1回出たら、あとは設定からだけ）:
+   ①主催として初めて招待するとき（招待ボタン） ②招待リンクで参加したとき（枠に入った／名前を入れた直後）
+   ③WEB版で募集シートを書き始めて2分たったとき（作業を邪魔しないよう、画面下の小さな帯で） */
+function bkNoticed(){ try{ return !!localStorage.getItem('awaseBkNoticed'); }catch(e){ return true; } }
+function bkMarkNoticed(){ try{ localStorage.setItem('awaseBkNoticed', '1'); }catch(e){} }
+function bkNoticeAfterJoin(){
+  if(bkNoticed() || !bkAvailable()) return;
+  const e = ev();
+  if(!e || isOwner(e)) return;
+  bkMarkNoticed();
+  setTimeout(()=>{ if(!document.querySelector('#modalHost .modal')) showBkCode(true); else bkHintBar(); }, 1500);
+}
+let bkHintStart = 0;
+function bkHintCheck(e){
+  if(!LITE || bkNoticed() || !bkAvailable() || !e || !liteHost(e) || !hasContent(e)) return;
+  if(!bkHintStart){ bkHintStart = Date.now(); return; }
+  if(Date.now() - bkHintStart < 120000) return;
+  bkMarkNoticed();
+  bkHintBar();
+}
+function bkHintBar(){
+  if(document.getElementById('bkHint')) return;
+  const el = document.createElement('div');
+  el.id = 'bkHint';
+  el.className = 'bkhint';
+  el.innerHTML = `<span>📦 機種変更やデータが消えたときのために、復元コードを控えておきましょう</span>
+    <button class="go" onclick="document.getElementById('bkHint').remove();showBkCode(false)">見る</button>
+    <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
+  document.body.appendChild(el);
+}
 /* 新しい端末で復元コードから戻す */
 async function bkRestorePrompt(){
   if(!bkAvailable()){ toast('いまは復元できません（通信できる状態でお試しください）'); return; }
@@ -2728,6 +2765,7 @@ function saveNameInput(){
   closeModal();
   const cb = nameCb; nameCb = null;
   if(cb) cb();
+  bkNoticeAfterJoin();
 }
 
 /* countdown ticker */
@@ -3151,6 +3189,7 @@ function tryJoinClaim(e){
       const R = conns[e.id];
       if(R){ R.v = -1; R.fetch().catch(()=>{}); }   // 取った枠・副主催の権限を受け取り直す
       toast(res.kind==='subHosts' ? 'この端末が副主催になりました' : `「${res.chara||res.name||'メンバー'}」の枠にこの端末で接続しました`);
+      bkNoticeAfterJoin();
     })
     .catch(err=>{
       const st = err && err.status;
@@ -3223,9 +3262,8 @@ function showInvite(){
   const e = ev();
   if(!e) return;
   /* 初めて招待するとき（＝主催として続ける併せができたとき）に、復元コードを一度だけ案内する */
-  let noticed = true; try{ noticed = !!localStorage.getItem('awaseBkNoticed'); }catch(err){}
-  if(!noticed && bkAvailable() && canHost(e)){
-    try{ localStorage.setItem('awaseBkNoticed', '1'); }catch(err){}
+  if(!bkNoticed() && bkAvailable() && canHost(e)){
+    bkMarkNoticed();
     showBkCode(true);
     return;
   }
