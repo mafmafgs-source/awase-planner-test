@@ -641,6 +641,7 @@ function openEvent(id, tab='info'){
   updateSavedBar();
   window.scrollTo(0,0);
   connectEvent(ev());
+  if(typeof conns!=='undefined' && conns[id]) pollAll();   // 開いていない間は1分に1回しか見ていないので、開いたらすぐ取り直す
 }
 function openStart(){
   if(!state.events.length){
@@ -2513,7 +2514,7 @@ function rejectPending(i){
    同じ復元コードの端末どうし（スマホとPCなど）は、保管庫を読む→手元と合わせる→書き戻す、で自動で揃う。
    ・合わせ方: 併せは新しい方（updatedAt）、消した併せは消したまま、忘れ物・表示名はあとから変えた方、主催の印は両方
    ・同時に書いたら（版番号が違う＝409）読み直して合わせ直す
-   ・揃えるタイミング: 変更の5秒後／画面に戻ったとき／開いている間は30秒ごと */
+   ・揃えるタイミング: 変更の5秒後／画面に戻ったとき／開いている間は60秒ごと */
 const BK_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 見間違えやすい I O 0 1 は使わない
 const BK_MAX = 2 * 1024 * 1024;
 let bkTimer = null, vVer = 0, vCache = null, vBusy = false, vAgain = false;
@@ -2715,7 +2716,7 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){ if(bkTimer){ clearTimeout(bkTimer); bkTimer = null; vSync(); } }
   else vSync();
 });
-setInterval(()=>{ if(!document.hidden) vSync(); }, 30000);
+setInterval(()=>{ if(!document.hidden) vSync(); }, 60000);   // 端末間の揃え直し（変更時・画面復帰時は別途すぐ揃える）
 function bkLastText(){
   const t = +(lsGet('awaseBkAt')||0);
   if(!t) return 'まだ保存されていません';
@@ -3118,14 +3119,18 @@ function roomRef(room, isOwnerFn){
   return R;
 }
 
-/* ポーリング: 画面が見えている間だけ。直近に変化があれば 4 秒、静かなら 15 秒間隔 */
+/* ポーリング: 画面が見えている間だけ。開いている併せは直近に変化があれば 6 秒、静かなら 30 秒間隔。
+   開いていない併せは 1 分に 1 回（サーバーの同時アクセスを抑える） */
+const POLL_FAST = 6000, POLL_SLOW = 30000, POLL_BG = 60000;
 let lastRemoteChange = Date.now();
 let pollTimer = null;
 function pollAll(){
   clearTimeout(pollTimer);
-  const rooms = Object.values(conns);
-  const next = ()=>{ pollTimer = setTimeout(pollAll, (Date.now()-lastRemoteChange < 300000) ? 4000 : 15000); };
+  const now = Date.now();
+  const rooms = Object.entries(conns).filter(([id, R])=> id===cur || now - (R.polledAt||0) >= POLL_BG - 1000).map(([id, R])=>R);
+  const next = ()=>{ pollTimer = setTimeout(pollAll, (Date.now()-lastRemoteChange < 300000) ? POLL_FAST : POLL_SLOW); };
   if(document.hidden || !rooms.length){ next(); return; }
+  rooms.forEach(R=>{ R.polledAt = now; });
   Promise.all(rooms.map(R=>R.fetch().then(ch=>{ R.retryFailed(); return ch; }).catch(()=>false)))
     .then(rs=>{ if(rs.some(Boolean)) lastRemoteChange = Date.now(); })
     .finally(next);
