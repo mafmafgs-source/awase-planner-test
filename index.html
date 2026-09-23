@@ -472,14 +472,14 @@ function isSub(e){ const r = e && e.roster && e.roster[clientId()]; return !!(r 
 /* 主催と同じ操作ができるか（主催 or 副主催）。権限判定はこちらを使う */
 function canHost(e){ return isOwner(e) || isSub(e); }
 /* WEB版で、この端末が作った併せ（＝募集シートだけの「作成モード」） */
-function liteHost(e){ return LITE && isOwner(e); }
+function liteHost(e){ return LITE && isOwner(e) && !e.shared; }   // shared＝アプリ・フル版で共有した併せ（WEB版でもフル機能）
 /* この端末が枠の本人か（claim=最初の端末、claims=同じ個別リンクで追加接続した端末） */
 function isMine(x){ return !!x && (x.claim===clientId() || (x.claims||[]).includes(clientId())); }
 /* この端末がすでにメンバー・カメラマンのどれかの枠を持っているか（1端末1枠） */
 function holdsSlot(e){ return !!e && (e.members||[]).concat(e.cameras||[]).some(isMine); }
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
 function setMyName(n){
-  try{ localStorage.setItem('awaseName', n); }catch(e){}
+  try{ localStorage.setItem('awaseName', n); localStorage.setItem('awaseNameAt', String(Date.now())); }catch(e){}
   bkDirty();
   /* 参加後に名前を入れた／変えた → 名簿（主催の参加者一覧）にも反映 */
   if(typeof conns!=='undefined') state.events.forEach(e=>{ if(conns[e.id]) registerRoster(e); });
@@ -607,8 +607,8 @@ function showList(){
           <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">表示名：${esc(myName())||'未設定'}
             <button class="btn ghost sm" onclick="closeModal();ensureName()" style="margin-left:6px">変更</button></div>
           ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}</div>
-          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">復元コードを見る</button>
-          <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">復元コードで引き継ぐ</button>
+          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">バックアップ・ほかの端末と連携</button>
+          <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ・つなぐ</button>
           <div style="margin:12px 0 6px;font-size:12px;color:var(--sub)">ファイルでのバックアップ</div>`:''}
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
@@ -832,6 +832,7 @@ function deleteEvent(){
     : 'この併せをこの端末から削除しますか？（招待リンクからまた参加できます）';
   if(!confirm(msg)) return;
   disconnectEvent(cur);
+  vMarkDeleted(cur);
   state.events = state.events.filter(x=>x.id!==cur);
   store.set(state);
   cur = null;
@@ -1979,13 +1980,13 @@ function myItems(){
     const raw = localStorage.getItem('awaseMyItems');
     if(raw == null){
       const seed = MY_DEFAULTS.map(t=>({id:uid(), text:t, done:false}));
-      setMyItems(seed);
+      localStorage.setItem('awaseMyItems', JSON.stringify(seed));   // 変更時刻は付けない（ほかの端末のリストを優先させる）
       return seed;
     }
     return JSON.parse(raw)||[];
   }catch(e){ return []; }
 }
-function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} bkDirty(); }
+function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); localStorage.setItem('awaseMyItemsAt', String(Date.now())); }catch(e){} bkDirty(); }
 function renderMyList(){
   loadRanking();
   const v = document.getElementById('view');
@@ -2490,21 +2491,25 @@ function rejectPending(i){
   savePending(); closeModal(); renderTab();
 }
 
-/* ---- 自動バックアップ（復元コード方式） ----
-   端末のデータ（併せの一覧・主催の権限＝端末ID/秘密・忘れ物チェック・表示名など）を、変更のたびに
-   （まとめて最大1分に1回）サーバーへ送る。送る前に「復元コード」から作った鍵で端末の中で暗号化するので、
-   サーバー・運営者には中身が読めない。新しい端末で復元コードを入れると元どおりになる（機種変更もこれ1つ）。 */
-const BK_KEYS = ['awasePlanner','awaseOwned','awaseClient','awaseSec','awaseName','awaseMyItems','awaseHidden','awaseTerms','awaseJoinClaim'];
+/* ---- 自動バックアップ＋端末の連携（復元コード方式・ログインなし） ----
+   「保管庫」＝その人の端末データ（併せの一覧・主催の権限＝端末ID/秘密・忘れ物・表示名など）を1つにまとめたもの。
+   復元コードから作った鍵で端末の中で暗号化してサーバーに置く（サーバー・運営者には読めない）。
+   同じ復元コードの端末どうし（スマホとPCなど）は、保管庫を読む→手元と合わせる→書き戻す、で自動で揃う。
+   ・合わせ方: 併せは新しい方（updatedAt）、消した併せは消したまま、忘れ物・表示名はあとから変えた方、主催の印は両方
+   ・同時に書いたら（版番号が違う＝409）読み直して合わせ直す
+   ・揃えるタイミング: 変更の5秒後／画面に戻ったとき／開いている間は30秒ごと */
 const BK_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 見間違えやすい I O 0 1 は使わない
 const BK_MAX = 2 * 1024 * 1024;
-let bkTimer = null;
+let bkTimer = null, vVer = 0, vCache = null, vBusy = false, vAgain = false;
 function bkAvailable(){ return syncReady() && !!(window.crypto && crypto.subtle); }
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k, v){ try{ if(v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); }catch(e){} }
+function lsJson(k, def){ try{ const v = JSON.parse(lsGet(k)); return v == null ? def : v; }catch(e){ return def; } }
 function bkCode(){
-  let c = '';
-  try{ c = localStorage.getItem('awaseBkCode') || ''; }catch(e){}
+  let c = lsGet('awaseBkCode') || '';
   if(!c){
     c = Array.from(crypto.getRandomValues(new Uint8Array(16)), b=>BK_ALPHA[b & 31]).join('').replace(/(.{4})(?=.)/g, '$1-');
-    try{ localStorage.setItem('awaseBkCode', c); }catch(e){}
+    lsSet('awaseBkCode', c);
   }
   return c;
 }
@@ -2525,23 +2530,8 @@ async function bkZip(u8, on){
   const cs = on ? new CompressionStream('gzip') : new DecompressionStream('gzip');
   return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer());
 }
-/* 端末のデータを1つにまとめる（大きすぎるときは端末内だけの画像＝背景・未共有の構図画像を外す） */
-function bkSnapshot(){
-  const o = {v:1, at:Date.now(), keys:{}};
-  BK_KEYS.forEach(k=>{ try{ const v = localStorage.getItem(k); if(v != null) o.keys[k] = v; }catch(e){} });
-  let json = JSON.stringify(o);
-  if(json.length > BK_MAX && o.keys.awasePlanner){
-    try{
-      const st = JSON.parse(o.keys.awasePlanner);
-      (st.events||[]).forEach(e=>{ e.bg = null; (e.shots||[]).forEach(s=>{ s.img = null; s.timg = null; }); (e.pending||[]).forEach(s=>{ s.img = null; s.timg = null; }); });
-      o.keys.awasePlanner = JSON.stringify(st);
-      json = JSON.stringify(o);
-    }catch(e){}
-  }
-  return json;
-}
-async function bkPack(json, key){
-  let body = new TextEncoder().encode(json), flag = 0;
+async function bkPack(obj, key){
+  let body = new TextEncoder().encode(JSON.stringify(obj)), flag = 0;
   const z = await bkZip(body, true).catch(()=>null);
   if(z){ body = z; flag = 1; }
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -2557,49 +2547,231 @@ async function bkUnpack(b64, key){
   const body = u[1] === 1 ? await bkZip(pt, false) : pt;
   return JSON.parse(new TextDecoder().decode(body));
 }
-/* 変更があったら1分後にまとめて送る（連続した編集で何度も送らない） */
+
+/* 手元の端末を「保管庫」の形にする（併せは id 順＝比べやすく） */
+function vLocal(){
+  const evs = JSON.parse(JSON.stringify(state.events)).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  const doc = {
+    v: 2,
+    identity: {me: clientId(), ms: deviceSecret()},
+    events: evs,
+    owned: own.get(),
+    deleted: lsJson('awaseDeleted', {}),
+    items: {at: +(lsGet('awaseMyItemsAt')||0), list: lsJson('awaseMyItems', null)},
+    name: {at: +(lsGet('awaseNameAt')||0), v: myName()},
+    hidden: lsJson('awaseHidden', {}),
+    terms: lsGet('awaseTerms') || ''
+  };
+  /* 大きすぎるときは端末内だけの画像（背景・未共有の構図画像）を外す（手元のデータからは消さない） */
+  if(JSON.stringify(doc).length > BK_MAX * 0.7){
+    doc.events.forEach(e=>{ e.bg = null; (e.shots||[]).forEach(s=>{ s.img = null; s.timg = null; }); (e.pending||[]).forEach(s=>{ s.img = null; s.timg = null; }); });
+  }
+  return doc;
+}
+/* 旧形式（9/23 の最初の版：localStorage の丸写し）を今の形に */
+function vFromV1(d){
+  const k = d.keys || {};
+  const j = (s, def)=>{ try{ const v = JSON.parse(s); return v == null ? def : v; }catch(e){ return def; } };
+  return {
+    v: 2,
+    identity: k.awaseClient && k.awaseSec ? {me: k.awaseClient, ms: k.awaseSec} : null,
+    events: (j(k.awasePlanner, {}).events || []),
+    owned: j(k.awaseOwned, {}), deleted: {},
+    items: {at: k.awaseMyItems ? 1 : 0, list: j(k.awaseMyItems, null)},
+    name: {at: k.awaseName ? 1 : 0, v: k.awaseName || ''},
+    hidden: j(k.awaseHidden, {}), terms: k.awaseTerms || ''
+  };
+}
+/* 手元（a）と保管庫（b）を合わせる */
+function vMerge(a, b){
+  if(!b) return a;
+  const now = Date.now();
+  const deleted = Object.assign({}, b.deleted||{});
+  Object.entries(a.deleted||{}).forEach(([k,t])=>{ deleted[k] = Math.max(deleted[k]||0, t); });
+  Object.keys(deleted).forEach(k=>{ if(now - deleted[k] > 180*86400000) delete deleted[k]; });
+  const map = {};
+  (b.events||[]).concat(a.events||[]).forEach(e=>{   // 後ろ（手元）が同点なら勝つ
+    if(!e || !e.id) return;
+    if(deleted[e.id] && deleted[e.id] >= (e.updatedAt||0)) return;
+    const cur = map[e.id];
+    if(!cur || (e.updatedAt||0) >= (cur.updatedAt||0)) map[e.id] = e;
+  });
+  const pick = (x, y)=> ((x && x.at)||0) >= ((y && y.at)||0) ? x : y;
+  const items = (a.items && a.items.at) || !(b.items && b.items.list) ? pick(a.items, b.items) : b.items;
+  return {
+    v: 2,
+    identity: (b.identity && b.identity.me) ? b.identity : a.identity,   // 保管庫の端末IDにそろえる（主催の権限もそのまま使える）
+    events: Object.values(map).sort((x,y)=>String(x.id).localeCompare(String(y.id))),
+    owned: Object.assign({}, b.owned||{}, a.owned||{}),
+    deleted,
+    items: items || {at:0, list:null},
+    name: (a.name && a.name.v && (a.name.at||0) >= ((b.name && b.name.at)||0)) ? a.name : (b.name && b.name.v ? b.name : a.name),
+    hidden: Object.assign({}, b.hidden||{}, a.hidden||{}),
+    terms: [a.terms||'', b.terms||''].sort().pop()
+  };
+}
+function vSame(x, y){ return JSON.stringify(x) === JSON.stringify(y); }
+/* 合わせた結果を手元に反映する */
+async function vApply(m){
+  /* 端末IDが変わる＝別の端末とつないだ。この端末で主催していた併せは、新しい端末IDを副主催にしてから切り替える
+     （主催の権限を持ったまま、つないだ先と同じ端末IDで動けるように） */
+  if(m.identity && m.identity.me && m.identity.me !== clientId()){
+    const mine = state.events.filter(e=>isOwner(e) && e.shared && e.sync && e.sync.room);
+    for(const e of mine){
+      try{ await apiPost({op:'set', r:e.sync.room, p:'roster/'+m.identity.me, val:{name: myName()||'主催', at: Date.now(), sub: true}}); }catch(err){}
+    }
+    lsSet('awaseClient', m.identity.me);
+    lsSet('awaseSec', m.identity.ms);
+    Object.values(conns).forEach(R=>{ R.v = -1; });
+  }
+  const before = new Set(state.events.map(e=>e.id));
+  const localById = {}; state.events.forEach(e=>{ localById[e.id] = e; });
+  /* 画像を外して送った分は、手元の画像を残す */
+  state.events = m.events.map(e=>{
+    const l = localById[e.id];
+    if(l && (l.updatedAt||0) === (e.updatedAt||0)) return l;
+    return e;
+  });
+  own.set(m.owned || {});
+  lsSet('awaseDeleted', JSON.stringify(m.deleted || {}));
+  if(m.items && m.items.list){ lsSet('awaseMyItems', JSON.stringify(m.items.list)); lsSet('awaseMyItemsAt', String(m.items.at||0)); }
+  if(m.name && m.name.v){ lsSet('awaseName', m.name.v); lsSet('awaseNameAt', String(m.name.at||0)); }
+  lsSet('awaseHidden', JSON.stringify(m.hidden || {}));
+  if(m.terms) lsSet('awaseTerms', m.terms);
+  try{ localStorage.setItem('awasePlanner', JSON.stringify(state)); }catch(e){}   // store.set は使わない（また同期が走るため）
+  if(syncReady()) state.events.forEach(e=>{ if(!before.has(e.id)) connectEvent(e); });
+  if(cur && !state.events.some(e=>e.id===cur)){ cur = null; openStart(); }
+  else{
+    updateSavedBar();
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if(cur && !typing && !document.querySelector('#modalHost .modal')) renderTab();
+  }
+}
+/* 保管庫と揃える（読む→合わせる→必要なら書く） */
+async function vSync(){
+  if(!bkAvailable()) return;
+  if(vBusy){ vAgain = true; return; }
+  vBusy = true;
+  try{
+    const {id, key} = await bkKeys(bkCode());
+    let res;
+    try{ res = await apiPost({op:'vget', id, have: vVer}); }
+    catch(err){ if(err && err.status===404) res = {ver:0, none:true}; else throw err; }
+    let remote = null;
+    if(res.none){ vVer = 0; vCache = null; }
+    else if(res.blob){
+      remote = await bkUnpack(res.blob, key);
+      if(remote && remote.keys) remote = vFromV1(remote);
+      vVer = res.ver; vCache = remote;
+    }else remote = vCache;
+    const local = vLocal();
+    const merged = vMerge(local, remote);
+    if(!vSame(merged, local)) await vApply(merged);
+    if(!remote || !vSame(merged, remote)){
+      try{
+        const r = await apiPost({op:'vput', id, blob: await bkPack(merged, key), ver: vVer});
+        vVer = r.ver; vCache = merged;
+      }catch(err){
+        if(err && err.status===409){ vVer = -1; vAgain = true; }   // 別の端末が先に書いた → 読み直して合わせ直す
+        else throw err;
+      }
+    }
+    lsSet('awaseBkAt', String(Date.now()));
+  }catch(err){
+    console.warn('sync/backup failed:', err);
+    clearTimeout(bkTimer); bkTimer = setTimeout(vSync, 5*60000);   // 圏外などは5分後にもう一度
+  }finally{
+    vBusy = false;
+    if(vAgain){ vAgain = false; setTimeout(vSync, 400); }
+  }
+}
+/* 変更があったら5秒後に揃える（連続した編集はまとめる） */
 function bkDirty(){
   if(!bkAvailable()) return;
   clearTimeout(bkTimer);
-  bkTimer = setTimeout(bkRun, 60000);
+  bkTimer = setTimeout(vSync, 5000);
 }
-async function bkRun(){
-  clearTimeout(bkTimer); bkTimer = null;
-  if(!bkAvailable()) return;
-  try{
-    const {id, key} = await bkKeys(bkCode());
-    const blob = await bkPack(bkSnapshot(), key);
-    await apiPost({op:'bkput', id, blob});
-    try{ localStorage.setItem('awaseBkAt', String(Date.now())); }catch(e){}
-  }catch(err){ console.warn('backup failed:', err); bkTimer = setTimeout(bkRun, 5*60000); }   // 圏外などは5分後にもう一度
-}
-/* 画面を閉じる・切り替えるときは待たずに送る */
-document.addEventListener('visibilitychange', ()=>{ if(document.hidden && bkTimer) bkRun(); });
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){ if(bkTimer){ clearTimeout(bkTimer); bkTimer = null; vSync(); } }
+  else vSync();
+});
+setInterval(()=>{ if(!document.hidden) vSync(); }, 30000);
 function bkLastText(){
-  let t = 0; try{ t = +localStorage.getItem('awaseBkAt') || 0; }catch(e){}
+  const t = +(lsGet('awaseBkAt')||0);
   if(!t) return 'まだ保存されていません';
   const d = new Date(t);
   return `${d.getMonth()+1}月${d.getDate()}日 ${('0'+d.getHours()).slice(-2)}:${('0'+d.getMinutes()).slice(-2)} に保存済み`;
 }
-/* 復元コードの案内（設定・初めて招待するとき） */
+function vLinkUrl(){ return WEB_BASE + '#link=' + bkNorm(bkCode()); }
+/* 復元コード・端末の追加（設定／初めての案内） */
 function showBkCode(first){
   if(!bkAvailable()){ toast('いまは自動バックアップを使えません'); return; }
   const code = bkCode();
-  bkRun();
+  const url = vLinkUrl();
+  vSync();
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>${first? '復元コードを控えておきましょう' : '自動バックアップ'}</h3>
+      <h3>${first? '復元コードを控えておきましょう' : 'バックアップ・ほかの端末と連携'}</h3>
       <div style="font-size:13.5px;line-height:1.8">
         この端末のデータ（併せの一覧・主催の権限・忘れ物チェックなど）は自動でバックアップされています。<br>
         機種変更やアプリの削除のときは、新しい端末でこの<b>復元コード</b>を入れると元どおりになります。
       </div>
       <div style="background:var(--acbg);border-radius:10px;padding:14px;margin:12px 0 6px;text-align:center;font-size:20px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
-      <div class="note" style="margin:0 0 10px">スクリーンショットかメモで控えてください。このコードを知っている人はデータを復元できるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
+      <div class="note" style="margin:0 0 10px">スクリーンショットかメモで控えてください。このコードを知っている人はデータを使えるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
       <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
+      <div class="secttl" style="margin-top:14px">PC・タブレットでも使う</div>
+      <div class="note" style="margin:0 0 8px">ほかの端末でこのQRコードを読み込むか、リンクを開くと、この端末と同じデータになり、以後は自動で揃います（主催の権限もそのまま使えます）。<b>自分の端末だけ</b>で開いてください。</div>
+      <div id="vQr" style="display:flex;justify-content:center;margin:6px 0 10px;min-height:40px"></div>
+      <button class="btn sec wide" onclick="copyText(${JSON.stringify(url).replace(/"/g,'&quot;')})">つなぐリンクをコピー</button>
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
+  vQr(url);
+}
+/* QRコード（qrcode-generator を必要なときだけ読み込む） */
+function vQr(url){
+  const box = document.getElementById('vQr');
+  if(!box) return;
+  const draw = ()=>{ try{ const q = qrcode(0, 'M'); q.addData(url); q.make(); box.innerHTML = q.createSvgTag({cellSize:4, margin:2}); }catch(e){ box.innerHTML = ''; } };
+  if(window.qrcode) return draw();
+  const sc = document.createElement('script');
+  sc.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
+  sc.onload = draw; sc.onerror = ()=>{ box.innerHTML = ''; };
+  document.head.appendChild(sc);
+}
+/* 復元コード（またはつなぐリンク）で、この端末をつなぐ／元に戻す */
+async function vLinkWithCode(code){
+  if(!bkAvailable()){ toast('いまはつなげません（通信できる状態でお試しください）'); return; }
+  const n = bkNorm(code);
+  if(n.length !== 16){ toast('復元コードは16文字です'); return; }
+  try{
+    const {id, key} = await bkKeys(n);
+    const res = await apiPost({op:'vget', id, have: -1});
+    let remote = await bkUnpack(res.blob, key);
+    if(remote && remote.keys) remote = vFromV1(remote);
+    const cnt = (remote.events||[]).length;
+    const mine = state.events.filter(hasContent).length;
+    if(!confirm(`併せ ${cnt} 件のデータが見つかりました。\nこの端末とつなぎますか？${mine? `\n（この端末にある ${mine} 件の併せも残して、合わせます）` : ''}`)) return;
+    lsSet('awaseBkCode', bkFormat(n));
+    vVer = 0; vCache = null;
+    await vSync();
+    toast('つなぎました');
+    setTimeout(()=>location.reload(), 700);
+  }catch(err){
+    console.warn(err);
+    toast(err && err.status===404 ? 'このコードのデータが見つかりません。コードを確かめてください' : 'つなげませんでした。コードと通信状態を確かめてください');
+  }
+}
+function bkRestorePrompt(){
+  const code = prompt('復元コード（16文字）を入力してください');
+  if(code) vLinkWithCode(code);
+}
+/* 併せを消したことを覚えておく（ほかの端末から復活させない） */
+function vMarkDeleted(id){
+  const d = lsJson('awaseDeleted', {});
+  d[id] = Date.now();
+  lsSet('awaseDeleted', JSON.stringify(d));
 }
 /* 復元コードの案内を出すきっかけ（どれか1回出たら、あとは設定からだけ）:
    ①主催として初めて招待するとき（招待ボタン） ②招待リンクで参加したとき（枠に入った／名前を入れた直後）
@@ -2631,31 +2803,6 @@ function bkHintBar(){
     <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
   document.body.appendChild(el);
 }
-/* 新しい端末で復元コードから戻す */
-async function bkRestorePrompt(){
-  if(!bkAvailable()){ toast('いまは復元できません（通信できる状態でお試しください）'); return; }
-  const code = prompt('復元コード（16文字）を入力してください');
-  if(!code) return;
-  if(bkNorm(code).length !== 16){ toast('復元コードは16文字です'); return; }
-  try{
-    const {id, key} = await bkKeys(code);
-    const res = await apiPost({op:'bkget', id});
-    const data = await bkUnpack(res.blob, key);
-    if(!data || !data.keys) throw new Error('bad data');
-    const n = (()=>{ try{ return (JSON.parse(data.keys.awasePlanner||'{}').events||[]).length; }catch(e){ return 0; } })();
-    const when = new Date((res.updated||0)*1000);
-    if(!confirm(`${when.getMonth()+1}月${when.getDate()}日のバックアップ（併せ ${n} 件）を見つけました。\nこの端末のデータを、バックアップの内容に置き換えますか？`)) return;
-    BK_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
-    Object.keys(data.keys).forEach(k=>{ if(BK_KEYS.includes(k)){ try{ localStorage.setItem(k, data.keys[k]); }catch(e){} } });
-    try{ localStorage.setItem('awaseBkCode', bkFormat(bkNorm(code))); localStorage.setItem('awaseBkAt', String(Date.now())); }catch(e){}
-    toast('復元しました');
-    setTimeout(()=>location.reload(), 600);
-  }catch(err){
-    console.warn(err);
-    toast(err && err.status===404 ? 'このコードのバックアップが見つかりません。コードを確かめてください' : '復元できませんでした。コードと通信状態を確かめてください');
-  }
-}
-
 /* ---- 通報（App Store / Google Play の UGC 要件） ----
    構図・リクエスト・コメント・併せ全体を理由つきで運営に通報する。運営は admin.php で確認して削除できる。
    通報した人の端末では、その画像・コメントをすぐ非表示にできる（端末ごと・localStorage）。 */
@@ -2955,6 +3102,7 @@ function cleanMeta(e){
   const m = JSON.parse(JSON.stringify(e));
   delete m.id; delete m.sync; delete m.shots; delete m.pending; delete m.comments; delete m.roster;
   delete m.bg; // 背景のdataURLはRTDBに載せない（R2のbgUrlのみ同期）
+  delete m.shared; // 端末の印（ほかの参加者には関係ない）
   return m;
 }
 const SHOT_DEFAULTS = {img:null,timg:null,url:null,turl:null,cap:'',done:false,prio:0,by:'',byId:'',at:0};
@@ -3148,6 +3296,7 @@ async function connectEvent(e){
     BRANCHES.forEach(b=>{
       base.child(b).on('value', s=>onRemote(e.id, b, s.val()), err=>console.warn('sync error:', err));
     });
+    if(isOwner(local) && !local.shared){ local.shared = true; store.set(state); }
     registerRoster(local);
     pollAll();
   }).catch(err=>{
@@ -3454,7 +3603,11 @@ function importJSON(){
   /* WEB版で「作るだけ」の人は投稿しない（サーバーに上げない）ので利用規約は出さない。
      招待リンクで参加する人（構図リクエスト・コメントを投稿する）にだけ出す */
   const joining = /#join=/.test(location.hash);
+  const linkM = location.hash.match(/#link=([A-Za-z0-9-]{16,24})/);
+  if(linkM){ history.replaceState(null,'',location.pathname+location.search); setTimeout(()=>vLinkWithCode(linkM[1]), 600); }
   if(termsOk() || (LITE && !joining)) start(); else showTerms(start);
+  /* 起動したら、ほかの端末の変更を取りにいく（自動バックアップ・端末の連携） */
+  setTimeout(vSync, 1500);
   /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
