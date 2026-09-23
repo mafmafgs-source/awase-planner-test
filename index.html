@@ -49,6 +49,15 @@ header h1{font-size:16px; font-weight:700; flex:1; white-space:nowrap; overflow:
   box-shadow:var(--sh); letter-spacing:.02em;
 }
 main{padding:16px;}
+/* WEB版で招待から参加した人向けの「アプリもあります」帯（控えめ・閉じられる） */
+.appbanner{
+  display:flex; align-items:center; gap:8px; background:var(--acbg);
+  border-bottom:1px solid var(--line); padding:7px 12px 7px 16px; font-size:12px; color:var(--sub);
+}
+.appbanner span{flex:1; line-height:1.5;}
+.appbanner a{color:var(--tx); font-weight:700; white-space:nowrap; text-decoration:none;
+  border:1px solid var(--line); background:var(--card); border-radius:99px; padding:4px 10px;}
+.appbanner button{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px; line-height:1;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
 .card h3{font-size:13.5px; color:var(--tx); margin-bottom:10px; letter-spacing:.02em;}
 .card h3 .cnt{color:var(--sub); font-weight:400; font-size:12px; margin-left:6px;}
@@ -403,6 +412,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
     <h1 id="hTitle">併せPlanner</h1>
     <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
   </header>
+  <div class="appbanner hidden" id="appBanner"></div>
 </div>
 <main id="view"></main>
 <nav class="tabs" id="tabbar"></nav>
@@ -411,8 +421,12 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 /* ============ 併せPlanner core ============ */
 'use strict';
 
-/* フィードバック版：進捗・構図タブを一時的に非表示（falseで復活） */
+/* WEB版（jyounetsu.site/awase/）は true。build.sh が書き換える。
+   WEB版の役割: (A) 自分で作る併せ＝募集シートだけ（スクショ用・サーバーに上げない）
+               (B) 招待リンクから参加した併せ＝アプリと同じ参加者画面（進捗・構図・忘れ物まで） */
 const LITE = false;
+/* アプリのストアURL（公開されたら入れる）。WEB版で参加した人に「アプリもあります」と控えめに案内する */
+const APP_LINKS = { ios: null, android: null };
 
 /* ---- state & persistence ---- */
 let state = { events: [] };
@@ -440,10 +454,16 @@ function isOwner(e){ return !!e && !!own.get()[e.id]; }
 function isSub(e){ const r = e && e.roster && e.roster[clientId()]; return !!(r && r.sub && !r.ban); }
 /* 主催と同じ操作ができるか（主催 or 副主催）。権限判定はこちらを使う */
 function canHost(e){ return isOwner(e) || isSub(e); }
+/* WEB版で、この端末が作った併せ（＝募集シートだけの「作成モード」） */
+function liteHost(e){ return LITE && isOwner(e); }
 /* この端末が枠の本人か（claim=最初の端末、claims=同じ個別リンクで追加接続した端末） */
 function isMine(x){ return !!x && (x.claim===clientId() || (x.claims||[]).includes(clientId())); }
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
-function setMyName(n){ try{ localStorage.setItem('awaseName', n); }catch(e){} }
+function setMyName(n){
+  try{ localStorage.setItem('awaseName', n); }catch(e){}
+  /* 参加後に名前を入れた／変えた → 名簿（主催の参加者一覧）にも反映 */
+  if(typeof conns!=='undefined') state.events.forEach(e=>{ if(conns[e.id]) registerRoster(e); });
+}
 function clientId(){
   try{
     let c = localStorage.getItem('awaseClient');
@@ -453,7 +473,9 @@ function clientId(){
 }
 function roomId(){
   const words=['sakura','yuki','hoshi','tsuki','hana','sora','umi','kaze','yume','hikari'];
-  return words[Math.floor(Math.random()*words.length)] + '-' + Math.random().toString(36).slice(2,7);
+  /* 部屋ID＝招待リンクの鍵。推測されないよう乱数部は10文字（旧形式の5文字の部屋もそのまま使える） */
+  const rnd = Array.from(crypto.getRandomValues(new Uint8Array(10)), b=>'abcdefghijkmnpqrstuvwxyz23456789'[b & 31]).join('');
+  return words[Math.floor(Math.random()*words.length)] + '-' + rnd;
 }
 function ev(){ return state.events.find(e=>e.id===cur); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -565,6 +587,7 @@ function showList(){
             <button class="btn ghost sm" onclick="closeModal();ensureName()" style="margin-left:6px">変更</button></div>
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
+          <div style="margin-top:10px;font-size:12px"><a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener" style="color:var(--sub)">プライバシーポリシー</a></div>
         </div></details>
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
@@ -603,13 +626,41 @@ function switchTab(t){
   renderTab();
   window.scrollTo(0,0);
 }
+/* ---- 「アプリもあります」帯（WEB版で招待から参加した併せのときだけ・閉じたら2週間出さない） ---- */
+function appLink(){
+  const ua = navigator.userAgent || '';
+  if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return APP_LINKS.ios;
+  if(/Android/.test(ua)) return APP_LINKS.android;
+  return APP_LINKS.ios || APP_LINKS.android;
+}
+function updateAppBanner(){
+  const el = document.getElementById('appBanner');
+  const e = ev();
+  const url = appLink();
+  let off = 0;
+  try{ off = +localStorage.getItem('awaseAppBannerOff') || 0; }catch(err){}
+  const show = LITE && !!e && !liteHost(e) && !!url && (Date.now() - off > 14*86400000);
+  el.classList.toggle('hidden', !show);
+  if(show) el.innerHTML = `<span>📱 アプリ版もあります。よく使うならアプリのほうが快適です</span>
+    <a href="${esc(url)}" target="_blank" rel="noopener">アプリを見る</a>
+    <button aria-label="閉じる" onclick="closeAppBanner()">×</button>`;
+}
+function closeAppBanner(){
+  try{ localStorage.setItem('awaseAppBannerOff', String(Date.now())); }catch(err){}
+  updateAppBanner();
+}
 function renderTabs(){
   const bar = document.getElementById('tabbar');
-  if(LITE){
+  const lh = liteHost(ev());
+  document.getElementById('invBtn').classList.toggle('hidden', lh); // WEB版の作成モードは招待しない
+  updateAppBanner();
+  if(lh){
     bar.classList.add('hidden');
     document.body.style.paddingBottom = '30px';
     return;
   }
+  bar.classList.remove('hidden');
+  document.body.style.paddingBottom = '';
   /* 招待者に要項タブはない。'info'のままなら併せタブへ寄せる */
   if(curTab==='info' && !canHost(ev())) curTab='awase';
   const tabs = canHost(ev())
@@ -625,7 +676,7 @@ function renderTab(){
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
   updateCdBadge();
   if(!canHost(e) && curTab==='info') curTab='awase';
-  if(LITE){ (canHost(e)? renderInfo() : renderAwase()); refreshFilled(); return; }
+  if(liteHost(e)){ renderInfo(); refreshFilled(); return; }
   if(curTab==='info') renderInfo();
   else if(curTab==='awase') renderAwase();
   else if(curTab==='prog') renderProg();
@@ -902,7 +953,7 @@ function renderInfo(){
     </div>
 
     <div class="sech">【副主催】<span class="opt">任意・何人でも</span></div>
-    ${LITE? '' : `<details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
+    ${liteHost(e)? '' : `<details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
       <summary>副主催とは？</summary>
       <div class="note">主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから【参加者】で任命することもできます。</div>
     </details>`}
@@ -2293,66 +2344,144 @@ setInterval(()=>{
 /* ============ 自動同期・招待・バックアップ ============ */
 
 /* ▼▼▼ 同期サーバー設定 ▼▼▼
-   SYNC_CONFIG: Firebase プロジェクトの設定を貼ると「開くだけで同期」が有効になります。
-   IMG_API:     Cloudflare Worker（worker/worker.js）のURLを貼ると、構図画像が
-                R2に保存され、メンバー間で共有されるようになります。
-   ※ 構図共有を含む本格運用は両方の設定が前提です（未設定なら端末内のみで動作）。
-   設定手順: docs/SETUP-同期サーバー.md
-   例: const SYNC_CONFIG = { apiKey:"...", databaseURL:"https://xxx.firebasedatabase.app", projectId:"..." };
-       const IMG_API = 'https://awase-imgs.xxxx.workers.dev';
+   SYNC_API: ロリポップ（jyounetsu.site）の同期・画像 API（hosting-lolipop/awase/api/index.php）。
+             null にすると同期せず、端末内だけで動く。
+   WEB_BASE: 招待リンクの行き先＝WEB版。アプリ・フル版から招待しても、相手はブラウザで開くだけで参加できる。
 */
-const SYNC_CONFIG = null;
-const IMG_API = null;
+const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // 手元の検証サーバーで開いたときだけ
+const SYNC_API = LOCAL_TEST ? location.origin + '/awase/api/' : 'https://jyounetsu.site/awase/api/';
+const WEB_BASE = LOCAL_TEST ? location.origin + '/awase/' : 'https://jyounetsu.site/awase/';
 /* ▲▲▲ ここまで ▲▲▲ */
 
 const BRANCHES = ['meta','shots','comments','pending','roster']; // 受信対象
 const PUSH_BRANCHES = ['meta','shots','comments','pending'];      // 一括送信対象（rosterは端末ごとの個別書き込みのみ）
-const conns = {};        // eventId -> firebase ref (部屋のルート)
+const conns = {};        // eventId -> 部屋の接続（roomRef）
 const pushTimers = {};
-let fbLoaded = false;
-let fbFailed = false;
 
-function syncReady(){ return !!SYNC_CONFIG && !fbFailed; }
-function imgApiReady(){ return !!IMG_API; }
+function syncReady(){ return !!SYNC_API; }
+function imgApiReady(){ return !!SYNC_API; }
 
-function loadScript(src){
-  return new Promise((res,rej)=>{
-    const s=document.createElement('script');
-    s.src=src; s.onload=res; s.onerror=()=>rej(new Error('load fail: '+src));
-    document.head.appendChild(s);
-  });
+/* ---- サーバーとの通信 ----
+   POST の本文は base64url(JSON)・Content-Type は text/plain。
+   ロリポップの WAF（入力文の <script> 等で弾く）と、CORS のプリフライト（OPTIONS が PHP に届かない）を避けるため。 */
+function b64u(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for(let i=0;i<bytes.length;i+=0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-async function ensureFirebase(){
-  if(fbLoaded) return;
-  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-  await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
-  if(!firebase.apps.length) firebase.initializeApp(SYNC_CONFIG);
-  fbLoaded = true;
+async function apiPost(obj){
+  const r = await fetch(SYNC_API, {method:'POST', headers:{'Content-Type':'text/plain'}, body: b64u(JSON.stringify(obj))});
+  if(!r.ok) throw new Error('api '+r.status);
+  return r.json();
 }
 
-/* ---- 画像API（Cloudflare Worker + R2） ---- */
+/* ---- 部屋の接続（Firebase の ref と同じ使い方: child(path).set / on / off / once） ----
+   受信はポーリング。サーバーの版番号(v)が変わったときだけ中身を受け取り、
+   変わったブランチのリスナーだけを呼ぶ。書き込みは部屋ごとに順番に送る（追い越し防止）。 */
+function roomRef(room){
+  const R = {
+    room, v:-1, tree:null, ls:{}, chain:Promise.resolve(), inflight:null,
+    pending:0, wseq:0, // 送信中の書き込み数・書き込み通番（受信と書き込みの追い越し対策）
+    failed:{},         // 送れなかった書き込み（path→値）。電波が戻ったら送り直す
+    child(path){
+      return {
+        set: val => R.set(path, val),
+        on: (_ev, cb) => { R.ls[path] = cb; if(R.tree) R.fire(path, R.get(path)); },
+        off: () => { delete R.ls[path]; },
+        child: sub => R.child(path + '/' + sub)
+      };
+    },
+    get(path){
+      let n = R.tree;
+      for(const k of path.split('/')){ if(n==null || typeof n!=='object') return null; n = n[k]; }
+      return n===undefined ? null : n;
+    },
+    put(path, val){
+      if(!R.tree || typeof R.tree!=='object') R.tree = {};
+      const ks = path.split('/'); let n = R.tree;
+      for(let i=0;i<ks.length-1;i++){
+        if(n[ks[i]]==null || typeof n[ks[i]]!=='object'){ if(val==null) return; n[ks[i]] = {}; }
+        n = n[ks[i]];
+      }
+      if(val==null) delete n[ks[ks.length-1]]; else n[ks[ks.length-1]] = val;
+    },
+    set(path, val){
+      val = val==null ? null : JSON.parse(JSON.stringify(val));
+      R.put(path, val); // 手元の写しにも反映（次の受信で自分の書き込みを「変更」と誤認しない）
+      delete R.failed[path];
+      R.pending++; R.wseq++;
+      R.chain = R.chain.then(()=>apiPost({op:'set', r:room, p:path, val}))
+        .then(res=>{ if(res && res.v===R.v+1) R.v = res.v; }) // 間に他人の書き込みがあれば次の受信で取り直す
+        .catch(err=>{ console.warn('push error:', err); if(!(path in R.failed)) R.failed[path] = val; })
+        .finally(()=>{ R.pending--; });
+      return R.chain;
+    },
+    fetch(){
+      if(R.inflight) return R.inflight;
+      const seq = R.wseq;
+      R.inflight = fetch(SYNC_API + '?r=' + encodeURIComponent(room) + '&v=' + R.v, {cache:'no-store'})
+        .then(r=>{ if(!r.ok) throw new Error('api '+r.status); return r.json(); })
+        .then(res=>{
+          if(!('d' in res)) return false;
+          /* 受信中に自分の書き込みが走った／古い版が遅れて届いた → 捨てて次の受信で取り直す（自分の変更を古い中身で消さない） */
+          if(R.pending>0 || R.wseq!==seq || (res.v < R.v && res.v !== 0)) return false;
+          const old = R.tree;
+          R.tree = res.d; R.v = res.v;
+          let changed = false;
+          Object.keys(R.ls).forEach(path=>{
+            const a = old==null ? undefined : JSON.stringify(R.getFrom(old, path));
+            const b = R.get(path);
+            if(a !== JSON.stringify(b)){ changed = true; R.fire(path, b); }
+          });
+          return changed;
+        })
+        .finally(()=>{ R.inflight = null; });
+      return R.inflight;
+    },
+    fire(path, val){ try{ R.ls[path] && R.ls[path]({ val: ()=>val }); }catch(err){ console.warn(err); } },
+    getFrom(tree, path){
+      let n = tree;
+      for(const k of path.split('/')){ if(n==null || typeof n!=='object') return null; n = n[k]; }
+      return n===undefined ? null : n;
+    },
+    retryFailed(){
+      Object.keys(R.failed).forEach(path=>{ const val = R.failed[path]; R.set(path, val); });
+    },
+    once(){ return R.fetch().then(()=>({ val: ()=>R.tree })); }
+  };
+  return R;
+}
+
+/* ポーリング: 画面が見えている間だけ。直近に変化があれば 4 秒、静かなら 15 秒間隔 */
+let lastRemoteChange = Date.now();
+let pollTimer = null;
+function pollAll(){
+  clearTimeout(pollTimer);
+  const rooms = Object.values(conns);
+  const next = ()=>{ pollTimer = setTimeout(pollAll, (Date.now()-lastRemoteChange < 300000) ? 4000 : 15000); };
+  if(document.hidden || !rooms.length){ next(); return; }
+  Promise.all(rooms.map(R=>R.fetch().then(ch=>{ R.retryFailed(); return ch; }).catch(()=>false)))
+    .then(rs=>{ if(rs.some(Boolean)) lastRemoteChange = Date.now(); })
+    .finally(next);
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ lastRemoteChange = Date.now(); pollAll(); } });
+
+/* ---- 画像（ロリポップの /awase/img/ に保存） ---- */
 async function uploadShotImage(room, id, full, thumb){
-  const r = await fetch(IMG_API.replace(/\/$/,'') + '/upload', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({room, id, full, thumb})
-  });
-  if(!r.ok) throw new Error('upload failed: '+r.status);
-  return r.json(); // {url, turl}
+  const res = await apiPost({op:'img', r:room, id, full, thumb});
+  if(!res || !res.url) throw new Error('upload failed');
+  return res; // {url, turl}
 }
 function deleteShotImage(room, id){
   if(!imgApiReady()) return;
-  try{
-    fetch(IMG_API.replace(/\/$/,'') + '/delete', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({room, id})
-    }).catch(()=>{});
-  }catch(e){}
+  apiPost({op:'imgdel', r:room, id}).catch(()=>{});
 }
 
 /* ---- ブランチ分割同期 ----
    コスト構造上の要:  イベント全体をset()せず、meta(要項)/shots(構図)/
    comments(コメント)/pending(申請) を別ノードで差分同期する。
-   画像本体はR2のURL参照のみで、RTDBには載せない（IMG_API設定時）。 */
+   画像本体はサーバーの画像URL参照のみで、同期データには載せない。 */
 
 function arrify(v){
   if(v==null) return [];
@@ -2543,11 +2672,9 @@ function setSub(cid, on){
 /* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
 async function connectEvent(e){
   if(!e || !syncReady() || conns[e.id]) return;
+  if(liteHost(e)) return; // WEB版で作った併せ＝「作成だけ」。サーバーには上げない
   if(!e.sync || !e.sync.room){ e.sync = {room: roomId()}; store.set(state); }
-  try{
-    await ensureFirebase();
-  }catch(err){ fbFailed = true; console.warn('sync unavailable:', err); return; }
-  const base = firebase.database().ref('awase/'+e.sync.room);
+  const base = roomRef(e.sync.room);
   conns[e.id] = base;
   base.once('value').then(snap=>{
     const v = snap.val();
@@ -2568,7 +2695,11 @@ async function connectEvent(e){
       base.child(b).on('value', s=>onRemote(e.id, b, s.val()), err=>console.warn('sync error:', err));
     });
     registerRoster(local);
-  }).catch(err=>{ console.warn('sync error:', err); });
+    pollAll();
+  }).catch(err=>{
+    console.warn('sync error:', err);
+    delete conns[e.id]; // 圏外などで最初の受信に失敗 → 次に開いたとき／画面に戻ったときに繋ぎ直す
+  });
 }
 function disconnectEvent(id){
   const base = conns[id];
@@ -2662,15 +2793,13 @@ function copyMemberInvite(i){
 
 /* ---- 招待（メンバー・カメラマン向け） ---- */
 function inviteURL(e){
-  if(location.protocol.startsWith('http')){
-    return location.origin + location.pathname + '#join=' + e.sync.room;
-  }
-  return null;
+  /* どこから招待しても行き先は WEB版（相手はアプリが無くてもブラウザで参加できる） */
+  return WEB_BASE + '#join=' + e.sync.room;
 }
 function showInvite(){
   const e = ev();
   if(!e) return;
-  if(!SYNC_CONFIG){
+  if(!syncReady()){
     document.getElementById('modalHost').innerHTML = `
     <div class="modal" onclick="if(event.target===this)closeModal()">
       <div class="box">
@@ -2752,7 +2881,7 @@ function joinByCode(code, mkey){
   const m = code.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
   if(m){ code = m[1]; if(!mkey) mkey = m[2]; }
   if(!code){ toast('コードが空です'); return; }
-  if(!SYNC_CONFIG){ toast('共有サーバーが未設定のため参加できません'); return; }
+  if(!syncReady()){ toast('共有サーバーが未設定のため参加できません'); return; }
   if(mkey) setJoinClaim(code, mkey);
   let e = state.events.find(x=>x.sync && x.sync.room===code);
   if(!e){
@@ -2841,7 +2970,7 @@ function importJSON(){
 
   // 招待リンク (#join=xxx / #join=xxx&m=枠キー) から開いた場合は自動参加、それ以外は要項ページを直接表示
   const m = location.hash.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
-  if(m && SYNC_CONFIG){
+  if(m && syncReady()){
     history.replaceState(null,'',location.pathname+location.search);
     joinByCode(m[1], m[2]);
   }else{
@@ -2849,9 +2978,11 @@ function importJSON(){
   }
 
   // 開いた時点で全併せを自動同期（LINE的な挙動・操作不要）
-  if(SYNC_CONFIG){
+  if(syncReady()){
     state.events.forEach(e=>connectEvent(e));
   }
+  /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
 </script>
 </body></html>
