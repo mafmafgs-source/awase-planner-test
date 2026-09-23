@@ -178,10 +178,10 @@ textarea{resize:vertical;}
 .sqchips{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;}
 .sqchip{background:var(--card); border:1px solid var(--line); border-radius:99px; padding:4px 11px; font-size:12.5px; color:var(--tx); cursor:pointer; font-family:inherit;}
 .sqchip .rk{color:var(--sub); font-size:11px; margin-right:4px;}
-.sqmore{margin-top:14px; border-top:1px solid var(--line); padding-top:10px;}
-.sqmore summary{font-size:12.5px; color:var(--sub); cursor:pointer;}
 .sqcat{font-size:12px; font-weight:700; color:var(--sub); margin:12px 0 2px;}
 .sqrow{display:flex; gap:10px; align-items:flex-start; padding:8px 0; border-bottom:1px dashed var(--line); font-size:13px;}
+.sqrk{flex:0 0 20px; height:20px; margin-top:2px; border-radius:50%; background:var(--acbg); color:var(--sub); font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;}
+.sqrk.r1{background:var(--tx); color:var(--card);}
 .sqrow .tb{flex:0 0 56px; width:56px; height:56px; border-radius:6px; object-fit:cover; background:var(--acbg); border:1px solid var(--line);}
 .sqrow .bd{flex:1; min-width:0;}
 .sqrow:last-child{border-bottom:none;}
@@ -1893,10 +1893,27 @@ function affHTML(){
   const cats = rankingData
     ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
     : [['sweets','お菓子の定番'],['goods','喜ばれる実用系']].map(([k,t])=>({title:t, items:AFF_ITEMS.filter(x=>x.cat===k).map(it=>({name:it.name, note:it.note, amazon:amazonSearchUrl(it.q), rakuten:rakutenSearchUrl(it.q)}))}));
+  const itemRow = (it, rk)=>`<div class="sqrow">
+    <span class="sqrk ${rk===1?'r1':''}">${rk}</span>
+    ${it.image? `<img class="tb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
+    <div class="bd">
+      <div>${esc(it.name)}</div>
+      ${it.note?`<div class="nt">${esc(it.note)}</div>`:''}
+      <div class="lk"><a href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>・<a href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">Amazon</a><span class="pr">PR</span>
+        ・<button class="sqadd" data-n="${esc(it.name)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
+    </div>
+  </div>`;
   return `<div class="card">
+    <h3>差し入れ売れ筋ランキング <span class="cnt">${rankingData? `${esc(rankingData.updated)}更新・毎日自動更新`:''}</span></h3>
+    ${cats.map(c=>`<div class="sqcat">${esc(c.title)}</div>
+      ${c.items.map((it,i)=>itemRow(it, i+1)).join('')}`).join('')}
+  </div>
+
+  <div class="card">
     <h3>差し入れを探す</h3>
+    <div class="note" style="margin:0 0 8px">商品名で探してみてください。みんなの検索が「みんなが探している差し入れ」ランキングに反映されて、次に差し入れを選ぶ人の参考になります。</div>
     <div class="row">
-      <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：ホットアイマスク、個包装のお菓子" onkeydown="if(event.key==='Enter')sqSearch()">
+      <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：めぐりズム、ミンティア" onkeydown="if(event.key==='Enter')sqSearch()">
       <button class="btn sec sm fix" onclick="sqSearch()">探す</button>
     </div>
     ${sqBlocked? `<div class="sqres" style="color:var(--sub)">${esc(sqBlocked)}</div>`:''}
@@ -1905,32 +1922,10 @@ function affHTML(){
 
     <div class="secttl" style="margin-top:16px">みんなが探している差し入れ</div>
     ${comm && comm.items.length
-      ? comm.items.map((it,ci)=>`<div class="sqrow">
-          ${it.image? `<img class="tb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
-          <div class="bd">
-            <div><span style="color:var(--sub);font-size:11.5px;margin-right:4px">${ci+1}</span>${esc(it.label)}</div>
-            <div class="nt">${esc(it.note)}</div>
-            <div class="lk"><a href="${esc(it.rakutenUrl)}" target="_blank" rel="sponsored noopener">楽天</a>・<a href="${esc(it.amazonUrl)}" target="_blank" rel="sponsored noopener">Amazon</a><span class="pr">PR</span>
-              ・<button class="sqadd" data-n="${esc(it.label)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
-          </div>
-        </div>`).join('')
+      ? comm.items.map((it,ci)=>itemRow({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}, ci+1)).join('')
       : rank.length
       ? `<div class="sqchips">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
-      : `<div class="note" style="margin:4px 0 0">集計中です。上の検索で探した差し入れが、ここのランキングに反映されます（3人以上が探した言葉だけを表示）。</div>`}
-
-    <details class="sqmore">
-      <summary>売れ筋から選ぶ${rankingData? `（${esc(rankingData.updated)}更新）`:''}</summary>
-      ${cats.map(c=>`<div class="sqcat">${esc(c.title)}</div>
-        ${c.items.map(it=>`<div class="sqrow">
-          ${it.image? `<img class="tb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
-          <div class="bd">
-          <div>${esc(it.name)}</div>
-          ${it.note?`<div class="nt">${esc(it.note)}</div>`:''}
-          <div class="lk"><a href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">Amazon</a>${it.rakuten?`・<a href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>`:''}<span class="pr">PR</span>
-            ・<button class="sqadd" data-n="${esc(it.name)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
-          </div>
-        </div>`).join('')}`).join('')}
-    </details>
+      : `<div class="note" style="margin:4px 0 0">ランキングはこれから育っていきます。あなたの検索が最初の一票になります（3人以上が探した商品から並びます）。</div>`}
     <div class="prnote">PR：Amazon・楽天のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト・楽天アフィリエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
   </div>`;
 }
