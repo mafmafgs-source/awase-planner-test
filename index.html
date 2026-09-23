@@ -1815,6 +1815,41 @@ const AFF_ITEMS = [
   {cat:'goods', name:'冷感タオル', note:'夏の屋外撮影の救世主', q:'冷感タオル'}
 ];
 
+/* ---- 禁止語（未成年も使うため：成人向け・酒・たばこ・医薬品など）----
+   正本はサーバーの api/ngwords.json（サーバー・差し入れサイト・毎朝のランキング生成と共通）。
+   入力させない・表示しない。一覧を読めないときは検索させず、みんなのランキングも出さない（安全側） */
+let ngData = null, ngP = null;
+function ngNorm(s){
+  return String(s||'').normalize('NFKC').toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60))
+    .replace(/[\s\u3000・\-ー_]+/g, '');
+}
+function ngLoad(){
+  if(ngData) return Promise.resolve(ngData);
+  if(!ngP){
+    ngP = fetch(SYNC_API + '?ng=1', {cache:'no-cache'})
+      .then(r=>{ if(!r.ok) throw new Error('ng '+r.status); return r.json(); })
+      .then(d=>{
+        const n = a=>(a||[]).map(ngNorm).filter(Boolean);
+        if(!d || !d.words || !d.words.length) throw new Error('ng empty');
+        ngData = {words:n(d.words), exact:n(d.exact), allow:n(d.allow)};
+        if(curTab==='items') renderTab();
+        return ngData;
+      })
+      .catch(err=>{ ngP = null; throw err; });
+  }
+  return ngP;
+}
+/* 禁止語を含むか。一覧が無いときは「含む」とみなす */
+function ngHit(text){
+  if(!ngData) return true;
+  let k = ngNorm(text);
+  if(ngData.exact.includes(k)) return true;
+  ngData.allow.forEach(a=>{ k = k.split(a).join(''); });
+  return ngData.words.some(w=>k.includes(w));
+}
+let sqBlocked = '';
+
 /* ---- みんなが探している差し入れ ----
    「差し入れを探す」で検索された言葉をサーバーで数え、3人以上が探した言葉だけをランキングにする（api ?sr=1）。
    チップを押しただけでは数えない（上位がさらに上がり続けるのを防ぐ） */
@@ -1828,10 +1863,17 @@ function loadSqRank(){
     .then(d=>{ if(d && Array.isArray(d.items)){ sqRank = d.items; if(curTab==='items') renderTab(); } })
     .catch(()=>{});
 }
-function sqSearch(term, record){
+async function sqSearch(term, record){
   if(term==null){ const el = document.getElementById('sqInput'); term = el ? el.value : ''; }
   term = String(term||'').trim().replace(/\s+/g,' ').slice(0,30);
   if(!term) return;
+  try{ await ngLoad(); }catch(err){ sqQuery = ''; sqBlocked = '通信できないため、いまは検索できません。電波の良い場所でもう一度お試しください。'; renderTab(); return; }
+  if(ngHit(term)){
+    sqQuery = '';
+    sqBlocked = 'この言葉では検索できません（未成年の方も使うため、お酒・たばこ・医薬品・成人向けの商品は扱っていません）。';
+    renderTab(); return;
+  }
+  sqBlocked = '';
   sqQuery = term;
   if(record !== false && syncReady()) apiPost({op:'sq', term}).catch(()=>{});
   renderTab();
@@ -1841,9 +1883,12 @@ function sqLinks(q){
 }
 function affHTML(){
   loadSqRank();
-  const rank = (sqRank||[]).slice(0,10);
+  ngLoad().catch(()=>{});
+  /* みんなの言葉・商品は禁止語の一覧を確認できてから、禁止語を除いて出す */
+  const rank = ngData ? (sqRank||[]).filter(it=>!ngHit(it.t)).slice(0,10) : [];
   /* みんなが探している差し入れ（毎朝の ranking.json で商品・サムネイル付きになったもの。まだ無ければ言葉のチップ） */
-  const comm = rankingData && rankingData.categories.find(c=>c.community);
+  const commRaw = ngData && rankingData && rankingData.categories.find(c=>c.community);
+  const comm = commRaw && {items: commRaw.items.filter(it=>!ngHit(it.label) && !ngHit(it.name||''))};
   /* 売れ筋（毎朝自動更新の ranking.json。取れないときは内蔵リスト） */
   const cats = rankingData
     ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
@@ -1854,15 +1899,16 @@ function affHTML(){
       <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：ホットアイマスク、個包装のお菓子" onkeydown="if(event.key==='Enter')sqSearch()">
       <button class="btn sec sm fix" onclick="sqSearch()">探す</button>
     </div>
+    ${sqBlocked? `<div class="sqres" style="color:var(--sub)">${esc(sqBlocked)}</div>`:''}
     ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を ${sqLinks(sqQuery)} で見る<span class="pr">PR</span><br>
       <button class="sqadd" data-n="${esc(sqQuery)}" onclick="addNameToList(this.dataset.n)">忘れ物リストに入れる</button></div>`:''}
 
     <div class="secttl" style="margin-top:16px">みんなが探している差し入れ</div>
     ${comm && comm.items.length
-      ? comm.items.map(it=>`<div class="sqrow">
+      ? comm.items.map((it,ci)=>`<div class="sqrow">
           ${it.image? `<img class="tb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
           <div class="bd">
-            <div><span style="color:var(--sub);font-size:11.5px;margin-right:4px">${it.rank}</span>${esc(it.label)}</div>
+            <div><span style="color:var(--sub);font-size:11.5px;margin-right:4px">${ci+1}</span>${esc(it.label)}</div>
             <div class="nt">${esc(it.note)}</div>
             <div class="lk"><a href="${esc(it.rakutenUrl)}" target="_blank" rel="sponsored noopener">楽天</a>・<a href="${esc(it.amazonUrl)}" target="_blank" rel="sponsored noopener">Amazon</a><span class="pr">PR</span>
               ・<button class="sqadd" data-n="${esc(it.label)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
