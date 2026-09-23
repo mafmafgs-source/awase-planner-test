@@ -446,7 +446,7 @@ let curTab = 'info';
 
 const store = {
   get(){ try{ return JSON.parse(localStorage.getItem('awasePlanner')); }catch(e){ return null; } },
-  set(v){ try{ localStorage.setItem('awasePlanner', JSON.stringify(v)); }catch(e){ /* storage unavailable */ } }
+  set(v){ try{ localStorage.setItem('awasePlanner', JSON.stringify(v)); }catch(e){ /* storage unavailable */ } bkDirty(); }
 };
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
@@ -474,6 +474,7 @@ function holdsSlot(e){ return !!e && (e.members||[]).concat(e.cameras||[]).some(
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
 function setMyName(n){
   try{ localStorage.setItem('awaseName', n); }catch(e){}
+  bkDirty();
   /* 参加後に名前を入れた／変えた → 名簿（主催の参加者一覧）にも反映 */
   if(typeof conns!=='undefined') state.events.forEach(e=>{ if(conns[e.id]) registerRoster(e); });
 }
@@ -598,6 +599,10 @@ function showList(){
         <div style="padding:10px">
           <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">表示名：${esc(myName())||'未設定'}
             <button class="btn ghost sm" onclick="closeModal();ensureName()" style="margin-left:6px">変更</button></div>
+          ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}</div>
+          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">復元コードを見る</button>
+          <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">復元コードで引き継ぐ</button>
+          <div style="margin:12px 0 6px;font-size:12px;color:var(--sub)">ファイルでのバックアップ</div>`:''}
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
           <div style="margin-top:10px;font-size:12px"><a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener" style="color:var(--sub)">プライバシーポリシー</a></div>
@@ -1973,7 +1978,7 @@ function myItems(){
     return JSON.parse(raw)||[];
   }catch(e){ return []; }
 }
-function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} }
+function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} bkDirty(); }
 function renderMyList(){
   loadRanking();
   const v = document.getElementById('view');
@@ -2478,6 +2483,142 @@ function rejectPending(i){
   savePending(); closeModal(); renderTab();
 }
 
+/* ---- 自動バックアップ（復元コード方式） ----
+   端末のデータ（併せの一覧・主催の権限＝端末ID/秘密・忘れ物チェック・表示名など）を、変更のたびに
+   （まとめて最大1分に1回）サーバーへ送る。送る前に「復元コード」から作った鍵で端末の中で暗号化するので、
+   サーバー・運営者には中身が読めない。新しい端末で復元コードを入れると元どおりになる（機種変更もこれ1つ）。 */
+const BK_KEYS = ['awasePlanner','awaseOwned','awaseClient','awaseSec','awaseName','awaseMyItems','awaseHidden','awaseTerms','awaseJoinClaim'];
+const BK_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // 見間違えやすい I O 0 1 は使わない
+const BK_MAX = 2 * 1024 * 1024;
+let bkTimer = null;
+function bkAvailable(){ return syncReady() && !!(window.crypto && crypto.subtle); }
+function bkCode(){
+  let c = '';
+  try{ c = localStorage.getItem('awaseBkCode') || ''; }catch(e){}
+  if(!c){
+    c = Array.from(crypto.getRandomValues(new Uint8Array(16)), b=>BK_ALPHA[b & 31]).join('').replace(/(.{4})(?=.)/g, '$1-');
+    try{ localStorage.setItem('awaseBkCode', c); }catch(e){}
+  }
+  return c;
+}
+function bkNorm(code){ return String(code||'').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function bkFormat(n){ return n.replace(/(.{4})(?=.)/g, '$1-'); }
+async function bkKeys(code){
+  const n = bkNorm(code), enc = new TextEncoder();
+  const idHash = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('awase-bk-id:' + n)));
+  const keyRaw = await crypto.subtle.digest('SHA-256', enc.encode('awase-bk-key:' + n));
+  const id = Array.from(idHash, b=>('0'+b.toString(16)).slice(-2)).join('').slice(0, 40);
+  const key = await crypto.subtle.importKey('raw', keyRaw, 'AES-GCM', false, ['encrypt','decrypt']);
+  return {id, key};
+}
+function bkB64(u8){ let s=''; for(let i=0;i<u8.length;i+=0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i+0x8000)); return btoa(s); }
+function bkUnB64(b){ const s = atob(b); const u = new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i] = s.charCodeAt(i); return u; }
+async function bkZip(u8, on){
+  if(typeof CompressionStream === 'undefined') return null;
+  const cs = on ? new CompressionStream('gzip') : new DecompressionStream('gzip');
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer());
+}
+/* 端末のデータを1つにまとめる（大きすぎるときは端末内だけの画像＝背景・未共有の構図画像を外す） */
+function bkSnapshot(){
+  const o = {v:1, at:Date.now(), keys:{}};
+  BK_KEYS.forEach(k=>{ try{ const v = localStorage.getItem(k); if(v != null) o.keys[k] = v; }catch(e){} });
+  let json = JSON.stringify(o);
+  if(json.length > BK_MAX && o.keys.awasePlanner){
+    try{
+      const st = JSON.parse(o.keys.awasePlanner);
+      (st.events||[]).forEach(e=>{ e.bg = null; (e.shots||[]).forEach(s=>{ s.img = null; s.timg = null; }); (e.pending||[]).forEach(s=>{ s.img = null; s.timg = null; }); });
+      o.keys.awasePlanner = JSON.stringify(st);
+      json = JSON.stringify(o);
+    }catch(e){}
+  }
+  return json;
+}
+async function bkPack(json, key){
+  let body = new TextEncoder().encode(json), flag = 0;
+  const z = await bkZip(body, true).catch(()=>null);
+  if(z){ body = z; flag = 1; }
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, body));
+  const out = new Uint8Array(2 + iv.length + ct.length);
+  out[0] = 1; out[1] = flag; out.set(iv, 2); out.set(ct, 14);
+  return bkB64(out);
+}
+async function bkUnpack(b64, key){
+  const u = bkUnB64(b64);
+  if(u[0] !== 1) throw new Error('bk version');
+  const pt = new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv:u.subarray(2, 14)}, key, u.subarray(14)));
+  const body = u[1] === 1 ? await bkZip(pt, false) : pt;
+  return JSON.parse(new TextDecoder().decode(body));
+}
+/* 変更があったら1分後にまとめて送る（連続した編集で何度も送らない） */
+function bkDirty(){
+  if(!bkAvailable()) return;
+  clearTimeout(bkTimer);
+  bkTimer = setTimeout(bkRun, 60000);
+}
+async function bkRun(){
+  clearTimeout(bkTimer); bkTimer = null;
+  if(!bkAvailable()) return;
+  try{
+    const {id, key} = await bkKeys(bkCode());
+    const blob = await bkPack(bkSnapshot(), key);
+    await apiPost({op:'bkput', id, blob});
+    try{ localStorage.setItem('awaseBkAt', String(Date.now())); }catch(e){}
+  }catch(err){ console.warn('backup failed:', err); bkTimer = setTimeout(bkRun, 5*60000); }   // 圏外などは5分後にもう一度
+}
+/* 画面を閉じる・切り替えるときは待たずに送る */
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && bkTimer) bkRun(); });
+function bkLastText(){
+  let t = 0; try{ t = +localStorage.getItem('awaseBkAt') || 0; }catch(e){}
+  if(!t) return 'まだ保存されていません';
+  const d = new Date(t);
+  return `${d.getMonth()+1}月${d.getDate()}日 ${('0'+d.getHours()).slice(-2)}:${('0'+d.getMinutes()).slice(-2)} に保存済み`;
+}
+/* 復元コードの案内（設定・初めて招待するとき） */
+function showBkCode(first){
+  if(!bkAvailable()){ toast('いまは自動バックアップを使えません'); return; }
+  const code = bkCode();
+  bkRun();
+  document.getElementById('modalHost').innerHTML = `
+  <div class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="box">
+      <h3>${first? '復元コードを控えておきましょう' : '自動バックアップ'}</h3>
+      <div style="font-size:13.5px;line-height:1.8">
+        この端末のデータ（併せの一覧・主催の権限・忘れ物チェックなど）は自動でバックアップされています。<br>
+        機種変更やアプリの削除のときは、新しい端末でこの<b>復元コード</b>を入れると元どおりになります。
+      </div>
+      <div style="background:var(--acbg);border-radius:10px;padding:14px;margin:12px 0 6px;text-align:center;font-size:20px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
+      <div class="note" style="margin:0 0 10px">スクリーンショットかメモで控えてください。このコードを知っている人はデータを復元できるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
+      <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
+      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>`;
+}
+/* 新しい端末で復元コードから戻す */
+async function bkRestorePrompt(){
+  if(!bkAvailable()){ toast('いまは復元できません（通信できる状態でお試しください）'); return; }
+  const code = prompt('復元コード（16文字）を入力してください');
+  if(!code) return;
+  if(bkNorm(code).length !== 16){ toast('復元コードは16文字です'); return; }
+  try{
+    const {id, key} = await bkKeys(code);
+    const res = await apiPost({op:'bkget', id});
+    const data = await bkUnpack(res.blob, key);
+    if(!data || !data.keys) throw new Error('bad data');
+    const n = (()=>{ try{ return (JSON.parse(data.keys.awasePlanner||'{}').events||[]).length; }catch(e){ return 0; } })();
+    const when = new Date((res.updated||0)*1000);
+    if(!confirm(`${when.getMonth()+1}月${when.getDate()}日のバックアップ（併せ ${n} 件）を見つけました。\nこの端末のデータを、バックアップの内容に置き換えますか？`)) return;
+    BK_KEYS.forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+    Object.keys(data.keys).forEach(k=>{ if(BK_KEYS.includes(k)){ try{ localStorage.setItem(k, data.keys[k]); }catch(e){} } });
+    try{ localStorage.setItem('awaseBkCode', bkFormat(bkNorm(code))); localStorage.setItem('awaseBkAt', String(Date.now())); }catch(e){}
+    toast('復元しました');
+    setTimeout(()=>location.reload(), 600);
+  }catch(err){
+    console.warn(err);
+    toast(err && err.status===404 ? 'このコードのバックアップが見つかりません。コードを確かめてください' : '復元できませんでした。コードと通信状態を確かめてください');
+  }
+}
+
 /* ---- 通報（App Store / Google Play の UGC 要件） ----
    構図・リクエスト・コメント・併せ全体を理由つきで運営に通報する。運営は admin.php で確認して削除できる。
    通報した人の端末では、その画像・コメントをすぐ非表示にできる（端末ごと・localStorage）。 */
@@ -2552,6 +2693,7 @@ function showTerms(done){
         不適切な内容を見つけたら、画面の「通報する」から知らせてください。
       </div>
       <button class="btn wide" onclick="agreeTerms()">同意して使う</button>
+      ${bkAvailable()? `<button class="rptlink" onclick="agreeTerms();setTimeout(bkRestorePrompt,300)">機種変更・データの復元はこちら（復元コード）</button>`:''}
     </div>
   </div>`;
 }
@@ -3080,6 +3222,13 @@ function inviteURL(e){
 function showInvite(){
   const e = ev();
   if(!e) return;
+  /* 初めて招待するとき（＝主催として続ける併せができたとき）に、復元コードを一度だけ案内する */
+  let noticed = true; try{ noticed = !!localStorage.getItem('awaseBkNoticed'); }catch(err){}
+  if(!noticed && bkAvailable() && canHost(e)){
+    try{ localStorage.setItem('awaseBkNoticed', '1'); }catch(err){}
+    showBkCode(true);
+    return;
+  }
   if(!syncReady()){
     document.getElementById('modalHost').innerHTML = `
     <div class="modal" onclick="if(event.target===this)closeModal()">
