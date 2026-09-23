@@ -469,6 +469,8 @@ function canHost(e){ return isOwner(e) || isSub(e); }
 function liteHost(e){ return LITE && isOwner(e); }
 /* この端末が枠の本人か（claim=最初の端末、claims=同じ個別リンクで追加接続した端末） */
 function isMine(x){ return !!x && (x.claim===clientId() || (x.claims||[]).includes(clientId())); }
+/* この端末がすでにメンバー・カメラマンのどれかの枠を持っているか（1端末1枠） */
+function holdsSlot(e){ return !!e && (e.members||[]).concat(e.cameras||[]).some(isMine); }
 function myName(){ try{ return localStorage.getItem('awaseName')||''; }catch(e){ return ''; } }
 function setMyName(n){
   try{ localStorage.setItem('awaseName', n); }catch(e){}
@@ -1644,7 +1646,8 @@ function renderProg(){
         ${mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`
           : m.claim? `<span class="mytag other">本人が更新中</span>${canHost(e)?`<button class="claimbtn" onclick="unclaimMem(${i})">解除</button>`:''}`
           : m.ikey? `<span class="mytag other">リンク招待中</span>`
-          : `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`}
+          : (canHost(e) && !holdsSlot(e))? `<button class="claimbtn" onclick="claimMem(${i})">自分の枠にする</button>`
+          : `<span class="mytag other">参加待ち</span>`}
       </div>
       <div class="st3 prog3">${PROG_ITEMS.map(([k,lbl])=>{
         const s = m.prog[k];
@@ -1709,7 +1712,8 @@ function dataLinksHTML(e){
         ${cam? (mine? `<span class="mytag">自分の枠</span><button class="claimbtn" onclick="unclaimCam(${ci})">解除</button>`
           : cam.claim? `<span class="mytag other">本人が更新中</span>${owner?`<button class="claimbtn" onclick="unclaimCam(${ci})">解除</button>`:''}`
           : cam.ikey? `<span class="mytag other">リンク招待中</span>`
-          : `<button class="claimbtn" onclick="claimCam(${ci})">自分の枠にする</button>`) : ''}
+          : (owner && !holdsSlot(e))? `<button class="claimbtn" onclick="claimCam(${ci})">自分の枠にする</button>`
+          : `<span class="mytag other">参加待ち</span>`) : ''}
       </div>
       ${d.links.map((l,j)=>`<div style="${j>0?'border-top:1px dashed var(--line);margin-top:10px;padding-top:10px':''}">
         <div class="row" style="margin-top:6px">
@@ -1733,7 +1737,9 @@ function dataLinksHTML(e){
   }).join('')}`;
 }
 function claimCam(ci){
-  ev().cameras[ci].claim = clientId();
+  const e = ev();
+  if(!canHost(e) || holdsSlot(e)) return;   // 手動で枠を取れるのは主催・副主催の1枠だけ（参加者は個別リンクで）
+  e.cameras[ci].claim = clientId();
   save(); renderTab();
   toast('自分の枠に設定しました');
 }
@@ -2096,7 +2102,9 @@ function delBgImage(){
 }
 
 function claimMem(i){
-  ev().members[i].claim = clientId();
+  const e = ev();
+  if(!canHost(e) || holdsSlot(e)) return;   // 手動で枠を取れるのは主催・副主催の1枠だけ（参加者は個別リンクで）
+  e.members[i].claim = clientId();
   save(); renderTab();
   toast('自分の枠に設定しました');
 }
@@ -2424,7 +2432,7 @@ function addComment(i, pre){
   const s = e.shots[i];
   const cs = shotComments(e, s.id);
   if(cs.length >= MAX_COMMENTS_PER_SHOT){ toast('この構図のコメントが上限に達しました'); return; }
-  cs.push({id:uid(), name:myName(), text, at:Date.now()});
+  cs.push({id:uid(), name:myName(), text, at:Date.now(), byId:clientId()});
   saveComments(); renderTab(); openShot(i);
 }
 
@@ -2617,7 +2625,20 @@ function b64u(str){
   for(let i=0;i<bytes.length;i+=0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000));
   return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
+/* 端末の秘密（画面にもデータにも出さない）。端末ID（clientId＝公開）と組でサーバーが端末を見分ける。
+   主催・副主催かどうか、どの枠の本人かはサーバーがこの組で確かめる（利用者は何も入力しない） */
+function deviceSecret(){
+  try{
+    let s = localStorage.getItem('awaseSec');
+    if(!s){
+      s = Array.from(crypto.getRandomValues(new Uint8Array(24)), b=>('0'+b.toString(16)).slice(-2)).join('');
+      localStorage.setItem('awaseSec', s);
+    }
+    return s;
+  }catch(e){ return ''; }
+}
 async function apiPost(obj){
+  obj = Object.assign({me: clientId(), ms: deviceSecret()}, obj);
   const r = await fetch(SYNC_API, {method:'POST', headers:{'Content-Type':'text/plain'}, body: b64u(JSON.stringify(obj))});
   if(!r.ok) throw Object.assign(new Error('api '+r.status), {status:r.status});
   return r.json();
@@ -2626,7 +2647,7 @@ async function apiPost(obj){
 /* ---- 部屋の接続（Firebase の ref と同じ使い方: child(path).set / on / off / once） ----
    受信はポーリング。サーバーの版番号(v)が変わったときだけ中身を受け取り、
    変わったブランチのリスナーだけを呼ぶ。書き込みは部屋ごとに順番に送る（追い越し防止）。 */
-function roomRef(room){
+function roomRef(room, isOwnerFn){
   const R = {
     room, v:-1, tree:null, ls:{}, chain:Promise.resolve(), inflight:null,
     pending:0, wseq:0, // 送信中の書き込み数・書き込み通番（受信と書き込みの追い越し対策）
@@ -2658,7 +2679,7 @@ function roomRef(room){
       R.put(path, val); // 手元の写しにも反映（次の受信で自分の書き込みを「変更」と誤認しない）
       delete R.failed[path];
       R.pending++; R.wseq++;
-      R.chain = R.chain.then(()=>apiPost({op:'set', r:room, p:path, val}))
+      R.chain = R.chain.then(()=>apiPost({op:'set', r:room, p:path, val, own: !!(isOwnerFn && isOwnerFn())}))
         .then(res=>{
           if(res && res.scrub){ R.v = -1; return; } // 運営が削除した内容をサーバーが取り除いた → 次の受信で全体を取り直す
           if(res && res.v===R.v+1) R.v = res.v;      // 間に他人の書き込みがあれば次の受信で取り直す
@@ -2666,7 +2687,7 @@ function roomRef(room){
         .catch(err=>{
           console.warn('push error:', err);
           /* 410＝運営が削除した併せ（送り直さない）。それ以外は電波が戻ったら送り直す */
-          if(err && err.status===410) return;
+          if(err && (err.status===410 || err.status===403)) return; // 削除された併せ／権限のない書き込みは送り直さない
           if(!(path in R.failed)) R.failed[path] = val;
         })
         .finally(()=>{ R.pending--; });
@@ -2675,8 +2696,7 @@ function roomRef(room){
     fetch(){
       if(R.inflight) return R.inflight;
       const seq = R.wseq;
-      R.inflight = fetch(SYNC_API + '?r=' + encodeURIComponent(room) + '&v=' + R.v, {cache:'no-store'})
-        .then(r=>{ if(!r.ok) throw new Error('api '+r.status); return r.json(); })
+      R.inflight = apiPost({op:'get', r:room, v:R.v})
         .then(res=>{
           if(!('d' in res)) return false;
           /* 受信中に自分の書き込みが走った／古い版が遅れて届いた → 捨てて次の受信で取り直す（自分の変更を古い中身で消さない） */
@@ -2929,7 +2949,7 @@ async function connectEvent(e){
   if(!e || !syncReady() || conns[e.id]) return;
   if(liteHost(e)) return; // WEB版で作った併せ＝「作成だけ」。サーバーには上げない
   if(!e.sync || !e.sync.room){ e.sync = {room: roomId()}; store.set(state); }
-  const base = roomRef(e.sync.room);
+  const base = roomRef(e.sync.room, ()=>isOwner(state.events.find(x=>x.id===e.id)));
   conns[e.id] = base;
   base.once('value').then(snap=>{
     const v = snap.val();
@@ -2973,41 +2993,31 @@ function setJoinClaim(room, key){
   if(key==null) delete m[room]; else m[room] = key;
   try{ localStorage.setItem('awaseJoinClaim', JSON.stringify(m)); }catch(e){}
 }
+/* 個別リンクの枠キーでサーバーに枠を取ってもらう（どの枠かの照合も1端末1枠の確認もサーバー側。
+   枠キーは主催・副主催以外には配られないので、手元では照合できない） */
+const claimBusy = {};
 function tryJoinClaim(e){
-  if(!e || !e.sync || !e.sync.room) return;
-  const key = joinClaimMap()[e.sync.room];
-  if(!key) return;
-  /* メンバー枠→カメラマン枠→副主催枠の順で照合 */
-  const subs = e.subHosts || [];
-  const m = e.members.find(x=>x.ikey===key) || e.cameras.find(x=>x.ikey===key) || subs.find(x=>x.ikey===key);
-  if(!m) return; // 名簿がまだ同期されていない（次のmeta受信で再試行）or 枠が削除済み
-  const subSlot = subs.indexOf(m) >= 0;
-  const wasMine = isMine(m);
-  if(m.claim && m.claim!==clientId()){
-    /* 同じ個別リンクを持っている＝本人の別端末（スマホ→PC等）とみなして追加接続 */
-    m.claims = m.claims || [];
-    if(!m.claims.includes(clientId())) m.claims.push(clientId());
-  }else{
-    m.claim = clientId();
-  }
-  if(m.name && !myName()) setMyName(m.name);
-  if(subSlot) grantSubSlot(e, m);   // 副主催専用リンク＝開いた時点で主催と同じ権限になる
-  setJoinClaim(e.sync.room, null);
-  e.updatedAt = Date.now();
-  store.set(state);
-  pushBranch(e,'meta');
-  if(cur===e.id) renderTab();
-  if(!wasMine) toast(subSlot? 'この端末が副主催になりました' : `「${m.chara||m.name||'メンバー'}」の枠にこの端末で接続しました`);
-}
-/* 副主催枠のリンクで参加した端末に、名簿側の権限フラグを立てる */
-function grantSubSlot(e, slot){
-  const cid = clientId();
-  if(!e.roster) e.roster = {};
-  const r = e.roster[cid] || {name:'', at:Date.now()};
-  r.sub = true;
-  if(slot.name) r.name = slot.name;
-  e.roster[cid] = r;
-  if(conns[e.id]){ try{ conns[e.id].child('roster/'+cid).set(stripNulls(r)); }catch(err){} }
+  if(!e || !e.sync || !e.sync.room || !syncReady()) return;
+  const room = e.sync.room;
+  const key = joinClaimMap()[room];
+  if(!key || claimBusy[room]) return;
+  claimBusy[room] = true;
+  apiPost({op:'claim', r:room, key, name: myName()})
+    .then(res=>{
+      setJoinClaim(room, null);
+      if(res.name && !myName()) setMyName(res.name);
+      const R = conns[e.id];
+      if(R){ R.v = -1; R.fetch().catch(()=>{}); }   // 取った枠・副主催の権限を受け取り直す
+      toast(res.kind==='subHosts' ? 'この端末が副主催になりました' : `「${res.chara||res.name||'メンバー'}」の枠にこの端末で接続しました`);
+    })
+    .catch(err=>{
+      const st = err && err.status;
+      if(st===404){ setJoinClaim(room, null); toast('この招待リンクの枠が見つかりません（主催に確認してください）'); }
+      else if(st===409){ setJoinClaim(room, null); toast('この端末はすでに別の枠で参加しています'); }
+      else if(st===403){ setJoinClaim(room, null); }
+      /* それ以外（圏外など）は次の受信でもう一度 */
+    })
+    .finally(()=>{ delete claimBusy[room]; });
 }
 /* 募集シートから副主催の枠を消したとき、その枠で繋がっていた端末の権限を外す */
 function revokeSubSlot(slot){
