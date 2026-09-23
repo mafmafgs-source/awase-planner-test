@@ -155,7 +155,7 @@ textarea{resize:vertical;}
   overflow:hidden;
 }
 .mychip .t{
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
   overflow:hidden; word-break:break-all;
 }
 .mychip.on{background:var(--tx); color:#fff; border-color:var(--tx);}
@@ -1953,7 +1953,20 @@ function addNameToList(name){
    完全に個人のメモ。localStorageのみ（同期に載せない・他の人には見えない・費用ゼロ） */
 let myEdit = false;
 const MY_PRESETS = ['衣装一式','ウィッグ','カラコン','靴','小物・武器','メイク道具','安全ピン','両面テープ','充電器・モバイルバッテリー','カメラ','現金','身分証'];
-function myItems(){ try{ return JSON.parse(localStorage.getItem('awaseMyItems'))||[]; }catch(e){ return []; } }
+/* 初めて開いたときの持ち物（チェックモードの使い方がひと目で分かるように）。
+   一度でも保存されたら入れ直さない＝編集モードで消した・空にした状態はそのまま残る */
+const MY_DEFAULTS = ['衣装一式','ウィッグ','カラコン','靴','小物・武器','メイク道具','安全ピン','充電器・モバイルバッテリー'];
+function myItems(){
+  try{
+    const raw = localStorage.getItem('awaseMyItems');
+    if(raw == null){
+      const seed = MY_DEFAULTS.map(t=>({id:uid(), text:t, done:false}));
+      setMyItems(seed);
+      return seed;
+    }
+    return JSON.parse(raw)||[];
+  }catch(e){ return []; }
+}
 function setMyItems(v){ try{ localStorage.setItem('awaseMyItems', JSON.stringify(v)); }catch(e){} }
 function renderMyList(){
   loadRanking();
