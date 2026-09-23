@@ -3343,6 +3343,8 @@ function joinPrompt(){
   if(code) joinByCode(code);
 }
 function joinByCode(code, mkey){
+  /* WEB版で最初は利用規約を出していない人が「招待コードで参加する」から入るときは、ここで同意してもらう */
+  if(!termsOk()){ showTerms(()=>joinByCode(code, mkey)); return; }
   code = String(code||'').trim();
   const m = code.match(/#join=([\w-]+?)(?:&m=([\w-]+))?$/);
   if(m){ code = m[1]; if(!mkey) mkey = m[2]; }
@@ -3450,7 +3452,10 @@ function importJSON(){
     }
   };
   /* 初回（または規約の改定後）は、利用規約に同意してから始める */
-  if(termsOk()) start(); else showTerms(start);
+  /* WEB版で「作るだけ」の人は投稿しない（サーバーに上げない）ので利用規約は出さない。
+     招待リンクで参加する人（構図リクエスト・コメントを投稿する）にだけ出す */
+  const joining = /#join=/.test(location.hash);
+  if(termsOk() || (LITE && !joining)) start(); else showTerms(start);
   /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
