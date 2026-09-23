@@ -1980,6 +1980,7 @@ async function setBgImage(files){
   try{
     toast('画像を読み込み中…');
     const full = await compressImage(f, 1000, .72);
+    if(needsImageCheck(e) && await nsfwBlocked(full)){ toast(NSFW_MSG); return; }
     if(syncReady() && imgApiReady()){
       const id = 'bg' + uid();
       const thumb = await compressImage(f, 300, .6);
@@ -2100,16 +2101,73 @@ function renderShots(){
          <button class="btn wide" onclick="delSelectedShots()">選択した${shotSel.size}枚を削除</button>
          <button class="btn sec wide" onclick="shotSel=null;renderTab()">キャンセル</button>`
       : owner
-      ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 構図画像を追加（複数可）</button>
+      ? `<button class="btn wide" ${e.shots.length>=MAX_SHOTS?'disabled style="opacity:.5"':''} onclick="if(needsImageCheck(ev()))nsfwModel();document.getElementById('shotFile').click()">＋ 構図画像を追加（複数可）</button>
          <div class="note">画像は自動で縮小して保存されます（最大${MAX_SHOTS}枚）。撮れた構図はタップして「撮れた！」でチェックしていきましょう。</div>
          ${e.shots.length?`<div class="row" style="margin-top:10px">
            <button class="btn ghost sm" onclick="shotSel=new Set();renderTab()">選択して削除</button>
            <button class="btn ghost sm" onclick="delAllShots()">全て削除</button>
          </div>`:''}`
-      : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="document.getElementById('shotFile').click()">＋ 撮りたい構図をリクエスト</button>
+      : `<button class="btn wide" ${pend.length>=MAX_PENDING?'disabled style="opacity:.5"':''} onclick="if(needsImageCheck(ev()))nsfwModel();document.getElementById('shotFile').click()">＋ 撮りたい構図をリクエスト</button>
          <div class="note">リクエストした構図は主催のOKで一覧に追加されます。コメントと「撮れた！」チェックは誰でもできます。</div>`}
   </div>`;
 }
+
+/* ---- 画像の自動チェック（わいせつな画像をそもそも上げさせない・判定は端末の中だけ） ----
+   NSFWJS（MobileNetV2・約2.6MB）を、画像をサーバーに上げるときだけ読み込む（2回目以降はブラウザのキャッシュ）。
+   コスプレ写真（水着・露出の多い衣装＝Sexy）は止めず、Porn / Hentai の確率が非常に高いものだけ止める。
+   ⚠️Hentai（本来は性的なイラスト）は白黒写真で誤爆する（9/23 検証: 1930年代の海水浴写真などが 0.87〜0.95）
+     → 白黒・ほぼ無彩色の画像では Hentai を見ない。カラーのコスプレ写真・アニメ絵 118 枚では誤判定 0。
+   判定モデルを読み込めないとき（圏外など）は止めない＝通報と運営の削除で対応する。 */
+const NSFW_LIB   = 'https://cdn.jsdelivr.net/npm/nsfwjs@4.4.0/dist/browser/nsfwjs.min.js';
+const NSFW_MODEL = 'https://cdn.jsdelivr.net/gh/infinitered/nsfwjs@v4.4.0/models/mobilenet_v2/model.json';
+const NSFW_BLOCK_PORN   = 0.85;  // 写真: Porn がこれ以上で止める（白黒でも）
+const NSFW_BLOCK_HENTAI = 0.90;  // イラスト: Hentai がこれ以上で止める（カラー画像のみ）
+const NSFW_BLOCK_SUM    = 0.92;  // Porn＋Hentai の合計がこれ以上で止める（カラー画像のみ）
+const NSFW_GRAY_SAT     = 12;    // 彩度の平均がこれ未満＝白黒とみなす（0〜255）
+let nsfwModelP = null;
+function nsfwModel(){
+  if(!nsfwModelP){
+    nsfwModelP = (window.nsfwjs ? Promise.resolve() : new Promise((res,rej)=>{
+        const sc = document.createElement('script');
+        sc.src = NSFW_LIB; sc.onload = res; sc.onerror = ()=>rej(new Error('load fail: '+NSFW_LIB));
+        document.head.appendChild(sc);
+      }))
+      .then(()=>window.nsfwjs.load(NSFW_MODEL))
+      .catch(err=>{ console.warn('nsfw check unavailable:', err); nsfwModelP = null; return null; });
+  }
+  return nsfwModelP;
+}
+/* サーバーに画像を上げる場面か（WEB版で自分が作った併せは端末の中だけなので対象外） */
+function needsImageCheck(e){ return syncReady() && imgApiReady() && !liteHost(e); }
+async function nsfwScore(dataUrl){
+  const m = await nsfwModel();
+  if(!m) return null;
+  const img = await new Promise((res,rej)=>{ const i = new Image(); i.onload = ()=>res(i); i.onerror = rej; i.src = dataUrl; });
+  const pr = await m.classify(img, 5);
+  const o = {}; pr.forEach(x=>{ o[x.className] = x.probability; });
+  o.sat = imageSaturation(img);
+  return o;
+}
+/* 画像の彩度の平均（各画素の max(R,G,B)-min(R,G,B)）。白黒写真はほぼ 0 */
+function imageSaturation(img){
+  const c = document.createElement('canvas'); c.width = c.height = 48;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, 48, 48);
+  const d = g.getImageData(0, 0, 48, 48).data;
+  let sum = 0;
+  for(let i=0;i<d.length;i+=4) sum += Math.max(d[i],d[i+1],d[i+2]) - Math.min(d[i],d[i+1],d[i+2]);
+  return sum / (d.length/4);
+}
+async function nsfwBlocked(dataUrl){
+  try{
+    const o = await nsfwScore(dataUrl);
+    if(!o) return false;
+    const porn = o.Porn||0, hentai = o.Hentai||0;
+    if(porn >= NSFW_BLOCK_PORN) return true;
+    if(o.sat < NSFW_GRAY_SAT) return false; // 白黒写真は Hentai が誤爆するので見ない
+    return hentai >= NSFW_BLOCK_HENTAI || porn + hentai >= NSFW_BLOCK_SUM;
+  }catch(err){ console.warn('nsfw check failed:', err); return false; }
+}
+const NSFW_MSG = '利用規約に反する可能性がある画像のため追加できませんでした';
 
 function addShots(files){
   const e = ev();
@@ -2122,11 +2180,13 @@ function addShots(files){
 }
 async function addShotArr(arr, owner){
   const e = ev();
-  toast('画像を読み込み中…');
-  let added = 0, failed = 0;
+  const check = needsImageCheck(e);
+  toast(check ? '画像を確認中…' : '画像を読み込み中…');
+  let added = 0, failed = 0, blocked = 0;
   for(const f of arr){
     try{
       const full = await compressImage(f, 720, .74);
+      if(check && await nsfwBlocked(full)){ blocked++; continue; }
       const thumb = await compressImage(f, 220, .66);
       const id = uid();
       let item = {id, img:null, timg:null, url:null, turl:null, cap:'', done:false, prio:0, by:myName()||'', byId:clientId(), at:Date.now()};
@@ -2141,9 +2201,11 @@ async function addShotArr(arr, owner){
       added++;
     }catch(err){ console.warn(err); failed++; }
   }
-  if(owner) saveShots(); else savePending();
+  if(added){ if(owner) saveShots(); else savePending(); }
   renderTab();
-  toast(failed? `${added}枚追加・${failed}枚失敗しました` : (owner?'追加しました':'リクエストしました！主催が確認します'));
+  if(blocked) toast(added ? `${added}枚追加しました。${blocked}枚は${NSFW_MSG}` : NSFW_MSG);
+  else if(!added && failed) toast('画像の追加に失敗しました');
+  else toast(failed? `${added}枚追加・${failed}枚失敗しました` : (owner?'追加しました':'リクエストしました！主催が確認します'));
 }
 function compressImage(file, max, q){
   return new Promise((res,rej)=>{
