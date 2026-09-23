@@ -1842,9 +1842,11 @@ function sqLinks(q){
 function affHTML(){
   loadSqRank();
   const rank = (sqRank||[]).slice(0,10);
+  /* みんなが探している差し入れ（毎朝の ranking.json で商品・サムネイル付きになったもの。まだ無ければ言葉のチップ） */
+  const comm = rankingData && rankingData.categories.find(c=>c.community);
   /* 売れ筋（毎朝自動更新の ranking.json。取れないときは内蔵リスト） */
   const cats = rankingData
-    ? rankingData.categories.map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
+    ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
     : [['sweets','お菓子の定番'],['goods','喜ばれる実用系']].map(([k,t])=>({title:t, items:AFF_ITEMS.filter(x=>x.cat===k).map(it=>({name:it.name, note:it.note, amazon:amazonSearchUrl(it.q), rakuten:rakutenSearchUrl(it.q)}))}));
   return `<div class="card">
     <h3>差し入れを探す</h3>
@@ -1856,7 +1858,17 @@ function affHTML(){
       <button class="sqadd" data-n="${esc(sqQuery)}" onclick="addNameToList(this.dataset.n)">忘れ物リストに入れる</button></div>`:''}
 
     <div class="secttl" style="margin-top:16px">みんなが探している差し入れ</div>
-    ${rank.length
+    ${comm && comm.items.length
+      ? comm.items.map(it=>`<div class="sqrow">
+          ${it.image? `<img class="tb" src="${esc(it.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ''}
+          <div class="bd">
+            <div><span style="color:var(--sub);font-size:11.5px;margin-right:4px">${it.rank}</span>${esc(it.label)}</div>
+            <div class="nt">${esc(it.note)}</div>
+            <div class="lk"><a href="${esc(it.rakutenUrl)}" target="_blank" rel="sponsored noopener">楽天</a>・<a href="${esc(it.amazonUrl)}" target="_blank" rel="sponsored noopener">Amazon</a><span class="pr">PR</span>
+              ・<button class="sqadd" data-n="${esc(it.label)}" onclick="addNameToList(this.dataset.n)">リストに入れる</button></div>
+          </div>
+        </div>`).join('')
+      : rank.length
       ? `<div class="sqchips">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
       : `<div class="note" style="margin:4px 0 0">集計中です。上の検索で探した差し入れが、ここのランキングに反映されます（3人以上が探した言葉だけを表示）。</div>`}
 
