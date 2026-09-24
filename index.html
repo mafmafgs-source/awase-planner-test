@@ -1105,15 +1105,15 @@ function renderInfo(){
     <div class="grpbox">
     <div class="grplead">確定メンバー・カメラマン・アシスタントは「併せ」タブ（進捗タブも）に反映されます。メンバーが確定したら随時入力してください。</div>
     ${sechHTML(e,'members','【確定メンバー】','キャラ / 名前 / @ID')}
-    ${S('members')?`<div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
+    ${S('members')?`<div id="memList">${rowsOrOne(e.members).map((m,i)=>memRow(m,i)).join('')}</div>
     <button class="btn sec sm" onclick="addMem()">＋ メンバーを追加</button>`:''}
 
     ${sechHTML(e,'cameras','【カメラマン】')}
-    ${S('cameras')?`<div id="camList">${e.cameras.map((c,i)=>camRow(c,i)).join('')}</div>
+    ${S('cameras')?`<div id="camList">${rowsOrOne(e.cameras).map((c,i)=>camRow(c,i)).join('')}</div>
     <button class="btn sec sm" onclick="addCam()">＋ カメラマンを追加</button>`:''}
 
     ${sechHTML(e,'assistants','【アシスタント】')}
-    ${S('assistants')?`<div id="asList">${e.assistants.map((a,i)=>asRow(a,i)).join('')}</div>
+    ${S('assistants')?`<div id="asList">${rowsOrOne(e.assistants).map((a,i)=>asRow(a,i)).join('')}</div>
     <button class="btn sec sm" onclick="addAs()">＋ アシスタントを追加</button>`:''}
     </div>
 
@@ -1154,6 +1154,7 @@ function extractPasteName(raw){
 function twInput(el, kind, i){
   const raw = el.value;
   const tw = extractTw(raw);
+  if(kind==='members' || kind==='cameras' || kind==='assistants') pAt(kind, i);
   const arr = ev()[kind];
   if(!arr || !arr[i]) return;
   if(tw && tw !== raw.trim()){
@@ -1200,8 +1201,8 @@ function addRec(){ ev().recruits.push({chara:''}); save(); renderTab(); }
 
 function memRow(m,i){
   return `<div class="row" style="margin-bottom:8px">
-    <input type="text" value="${esc(m.chara)}" placeholder="キャラ" oninput="ev().members[${i}].chara=this.value;save()">
-    <input type="text" value="${esc(m.name)}" placeholder="名前" oninput="ev().members[${i}].name=this.value;save()">
+    <input type="text" value="${esc(m.chara)}" placeholder="キャラ" oninput="pAt('members',${i}).chara=this.value;save()">
+    <input type="text" value="${esc(m.name)}" placeholder="名前" oninput="pAt('members',${i}).name=this.value;save()">
     <input type="text" value="${esc(m.tw)}" placeholder="@ID" oninput="twInput(this,'members',${i})">
     <button class="del" onclick="delPerson('members',${i})">✕</button>
     <button class="rowbtn" onclick="copyPerson('members',${i})">コピー</button>
@@ -1226,19 +1227,30 @@ function delPerson(kind,i){
   arr.splice(i,1);
   save(); renderTab();
 }
-function addMem(){
-  ev().members.push({chara:'',name:'',tw:'',prog:{ish:0,wig:0,item:0},memo:''});
+/* 確定メンバー・カメラマン・アシスタントは、空でも入力欄を 1 行出す（入力を始めた時点でデータになる＝空の枠は作らない） */
+function blankPerson(kind){ return kind==='members' ? {chara:'',name:'',tw:'',prog:{ish:0,wig:0,item:0},memo:''} : {name:'',tw:''}; }
+function pAt(kind, i){
+  const a = ev()[kind];
+  while(a.length <= i) a.push(blankPerson(kind));
+  return a[i];
+}
+function rowsOrOne(arr){ return arr.length ? arr : [{}]; }
+function addPerson(kind){
+  const a = ev()[kind];
+  if(!a.length) a.push(blankPerson(kind));   // 表示中の空の 1 行ぶん
+  a.push(blankPerson(kind));
   save(); renderTab();
 }
+function addMem(){ addPerson('members'); }
 function camRow(c,i){
   return `<div class="row" style="margin-bottom:8px">
-    <input type="text" value="${esc(c.name)}" placeholder="お名前" oninput="ev().cameras[${i}].name=this.value;save()">
+    <input type="text" value="${esc(c.name)}" placeholder="お名前" oninput="pAt('cameras',${i}).name=this.value;save()">
     <input type="text" value="${esc(c.tw)}" placeholder="@ID" oninput="twInput(this,'cameras',${i})">
     <button class="del" onclick="delPerson('cameras',${i})">✕</button>
     <button class="rowbtn" onclick="copyPerson('cameras',${i})">コピー</button>
   </div>`;
 }
-function addCam(){ ev().cameras.push({name:'',tw:''}); save(); renderTab(); }
+function addCam(){ addPerson('cameras'); }
 
 function subRow(h,i){
   return `<div class="row" style="margin-bottom:8px">
@@ -1257,13 +1269,13 @@ function addSubHost(){
 
 function asRow(a,i){
   return `<div class="row" style="margin-bottom:8px">
-    <input type="text" value="${esc(a.name)}" placeholder="お名前" oninput="ev().assistants[${i}].name=this.value;save()">
+    <input type="text" value="${esc(a.name)}" placeholder="お名前" oninput="pAt('assistants',${i}).name=this.value;save()">
     <input type="text" value="${esc(a.tw)}" placeholder="@ID" oninput="twInput(this,'assistants',${i})">
     <button class="del" onclick="delPerson('assistants',${i})">✕</button>
     <button class="rowbtn" onclick="copyPerson('assistants',${i})">コピー</button>
   </div>`;
 }
-function addAs(){ ev().assistants.push({name:'',tw:''}); save(); renderTab(); }
+function addAs(){ addPerson('assistants'); }
 
 function ttRow(t,i){
   return `<div class="ttrow">
