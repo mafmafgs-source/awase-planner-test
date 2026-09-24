@@ -568,7 +568,6 @@ function save(pushRemote=true){
   store.set(state);
   updateSavedBar();
   if(pushRemote && e) schedulePush(e);
-  bkHintCheck(e);
   askPersist();
 }
 
@@ -645,8 +644,8 @@ function showList(){
         <div style="padding:10px">
           <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">マイページ：${esc(myName())||'名前未設定'}${myTw()?`（${esc(at(myTw()))}）`:''}
             <button class="btn ghost sm" onclick="closeModal();showMyPage()" style="margin-left:6px">変更</button></div>
-          ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}</div>
-          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">バックアップ・ほかの端末と連携</button>
+          ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}（復元コードはマイページから）</div>
+          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">復元コード・ほかの端末と連携</button>
           <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ・つなぐ</button>
           <div style="margin:12px 0 6px;font-size:12px;color:var(--sub)">ファイルでのバックアップ</div>`:''}
           ${canA2hs()? `<div style="margin-bottom:10px"><button class="btn ghost sm" onclick="closeModal();showA2hs()">ホーム画面に追加する（データが消えにくくなります）</button></div>` : ''}
@@ -2753,7 +2752,7 @@ function bkLastText(){
 }
 function vLinkUrl(){ return WEB_BASE + '#link=' + bkNorm(bkCode()); }
 /* 復元コード・端末の追加（設定／初めての案内） */
-function showBkCode(first){
+function showBkCode(first, next){
   if(!bkAvailable()){ toast('いまは自動バックアップを使えません'); return; }
   const code = bkCode();
   const url = vLinkUrl();
@@ -2776,7 +2775,8 @@ function showBkCode(first){
       <div class="note" style="margin:0 0 8px">ほかの端末でこのQRコードを読み込むか、リンクを開くと、この端末と同じデータになり、以後は自動で揃います（主催の権限もそのまま使えます）。<b>自分の端末だけ</b>で開いてください。</div>
       <div id="vQr" style="display:flex;justify-content:center;margin:6px 0 10px;min-height:40px"></div>
       <button class="btn sec wide" onclick="copyText(${JSON.stringify(url).replace(/"/g,'&quot;')})">つなぐリンクをコピー</button>
-      <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      ${first? `<div class="note" style="margin:10px 0 0;text-align:center">このコードは、あとから「マイページ」でいつでも確認できます。</div>` : ''}
+      ${next? `<button class="btn wide" onclick="closeModal();${next}">OK（招待へ進む）</button>` : `<button class="btn sec wide" onclick="closeModal()">閉じる</button>`}
     </div>
   </div>`;
   vQr(url);
@@ -2825,37 +2825,10 @@ function vMarkDeleted(id){
   d[id] = Date.now();
   lsSet('awaseDeleted', JSON.stringify(d));
 }
-/* 復元コードの案内を出すきっかけ（どれか1回出たら、あとは設定からだけ）:
-   ①主催として初めて招待するとき（招待ボタン） ②招待リンクで参加したとき（枠に入った／名前を入れた直後）
-   ③自分で作った併せを書き始めて2分たったとき（作業を邪魔しないよう、画面下の小さな帯で）
-   ④マイページを保存したとき */
+/* 復元コードの案内は「主催として初めて招待するとき」の 1 回だけ（主催の権限を失うのがいちばん困るため）。
+   それ以外はマイページの「復元コード」からいつでも見られる */
 function bkNoticed(){ try{ return !!localStorage.getItem('awaseBkNoticed'); }catch(e){ return true; } }
 function bkMarkNoticed(){ try{ localStorage.setItem('awaseBkNoticed', '1'); }catch(e){} }
-function bkNoticeAfterJoin(){
-  if(bkNoticed() || !bkAvailable()) return;
-  const e = ev();
-  if(!e || isOwner(e)) return;
-  bkMarkNoticed();
-  setTimeout(()=>{ if(!document.querySelector('#modalHost .modal')) showBkCode(true); else bkHintBar(); }, 1500);
-}
-let bkHintStart = 0;
-function bkHintCheck(e){
-  if(bkNoticed() || !bkAvailable() || !e || !isOwner(e) || !hasContent(e)) return;
-  if(!bkHintStart){ bkHintStart = Date.now(); return; }
-  if(Date.now() - bkHintStart < 120000) return;
-  bkMarkNoticed();
-  bkHintBar();
-}
-function bkHintBar(){
-  if(document.getElementById('bkHint')) return;
-  const el = document.createElement('div');
-  el.id = 'bkHint';
-  el.className = 'bkhint';
-  el.innerHTML = `<span>📦 機種変更やデータが消えたときのために、復元コードを控えておきましょう</span>
-    <button class="go" onclick="document.getElementById('bkHint').remove();showBkCode(false)">見る</button>
-    <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
-  document.body.appendChild(el);
-}
 /* ---- データを消えにくくする（ブラウザ版） ----
    ・persist(): 端末の空きが減ってもこのサイトのデータを消さないよう、ブラウザに頼む（許可するかはブラウザが決める）
    ・iPhone の Safari は 7 日間開かないとサイトのデータを消すことがある → ホーム画面に追加して開けば消えない。
@@ -2916,7 +2889,7 @@ function standaloneWelcome(tries){
       <button class="btn sec wide" onclick="homePaste()">コピーしたコードを貼り付け</button>
       <button class="btn wide" onclick="homeLink()">引き継ぐ</button>
       <button class="btn sec wide" onclick="closeModal()">新しく始める</button>
-      <div class="note" style="margin-top:6px">あとからでも「保存された併せを開く」→「設定・バックアップ」→「コードで引き継ぐ・つなぐ」でできます。</div>
+      <div class="note" style="margin-top:6px">あとからでも「マイページ」→「コードで引き継ぐ」でできます。</div>
     </div>
   </div>`;
 }
@@ -3045,6 +3018,10 @@ function showMyPage(){
       <div style="font-size:12px;color:var(--sub);margin:10px 0 2px">Xの@ID</div>
       <input type="text" id="meTw" value="${esc(myTw())}" placeholder="@ID（プロフィールURL貼り付けOK）" oninput="meTwInput(this)">
       <button class="btn wide" onclick="saveMyPage()">保存</button>
+      ${bkAvailable()? `<div class="secttl" style="margin-top:18px">復元コード（バックアップ・ほかの端末と連携）</div>
+      <div class="note" style="margin:0 0 8px">併せの一覧・主催の権限・マイページなどは自動でバックアップされています（${esc(bkLastText())}）。機種変更やデータが消えたときは、復元コードで元に戻せます。PC・タブレットとつなぐのもここから。</div>
+      <button class="btn sec wide" onclick="saveMyPage(true);closeModal();showBkCode(false)">復元コードを表示・ほかの端末とつなぐ</button>
+      <button class="btn sec wide" onclick="saveMyPage(true);closeModal();bkRestorePrompt()">コードで引き継ぐ</button>` : ''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
@@ -3060,7 +3037,7 @@ function meTwInput(el){
     else toast('@IDを自動入力しました');
   }
 }
-function saveMyPage(){
+function saveMyPage(quiet){
   const n = (document.getElementById('meName').value || '').trim();
   let t = (document.getElementById('meTw').value || '').trim();
   if(t){ const h = xHandle(t); t = h ? '@'+h : ''; }
@@ -3072,9 +3049,9 @@ function saveMyPage(){
     if(fillHost(e)){ e.updatedAt = Date.now(); changed = true; if(typeof schedulePush==='function') schedulePush(e); }
   });
   if(changed){ store.set(state); if(cur && curTab==='info') renderTab(); }
+  if(quiet) return;
   closeModal();
   toast('マイページを保存しました');
-  if(!bkNoticed() && bkAvailable()){ bkMarkNoticed(); setTimeout(()=>showBkCode(true), 500); }
 }
 
 /* ---- 表示名の入力（コメント・申請の前に一度だけ） ---- */
@@ -3101,7 +3078,6 @@ function saveNameInput(){
   closeModal();
   const cb = nameCb; nameCb = null;
   if(cb) cb();
-  bkNoticeAfterJoin();
 }
 
 /* countdown ticker */
@@ -3531,7 +3507,6 @@ function tryJoinClaim(e){
       const R = conns[e.id];
       if(R){ R.v = -1; R.fetch().catch(()=>{}); }   // 取った枠・副主催の権限を受け取り直す
       toast(res.kind==='subHosts' ? 'この端末が副主催になりました' : `「${res.chara||res.name||'メンバー'}」の枠にこの端末で接続しました`);
-      bkNoticeAfterJoin();
     })
     .catch(err=>{
       const st = err && err.status;
@@ -3629,7 +3604,7 @@ function showInvite(){
   /* 初めて招待するとき（＝主催として続ける併せができたとき）に、復元コードを一度だけ案内する */
   if(!bkNoticed() && bkAvailable() && canHost(e)){
     bkMarkNoticed();
-    showBkCode(true);
+    showBkCode(true, 'showInvite()');
     return;
   }
   if(!syncReady()){
