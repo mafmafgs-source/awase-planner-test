@@ -1937,11 +1937,12 @@ function loadRanking(){
     .catch(()=>{});
 }
 /* アフィリエイトの識別子（差し入れランキング sashiire-ranking と同じ）。
-   Amazon は専用トラッキングID、楽天は もしも経由（検索結果ページへのリンク） */
+   Amazon は専用トラッキングID、楽天は本家アフィリエイト（検索結果ページへのリンク） */
 const AMAZON_TAG = 'sashiire01-22';
-const MOSHIMO_RAKUTEN = 'https://af.moshimo.com/af/c/click?a_id=1500380&p_id=54&pc_id=54&pl_id=27059&url=';
+/* 楽天は本家アフィリエイト（すべて https・転送 3 回）。もしも経由は途中に http:// の転送があり iPhone の Chrome で止まるため 9/24 にやめた */
+const RAKUTEN_AFF_ID = '569e8585.c4959bff.569e8586.775f3b01';
 function amazonSearchUrl(q){ return 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(q) + '&tag=' + AMAZON_TAG; }
-function rakutenSearchUrl(q){ return MOSHIMO_RAKUTEN + encodeURIComponent('https://search.rakuten.co.jp/search/mall/' + encodeURIComponent(q) + '/'); }
+function rakutenSearchUrl(q){ return 'https://hb.afl.rakuten.co.jp/hgc/' + RAKUTEN_AFF_ID + '/?pc=' + encodeURIComponent('https://search.rakuten.co.jp/search/mall/' + encodeURIComponent(q) + '/') + '&link_type=hybrid_url'; }
 const AFF_ITEMS = [
   {cat:'sweets', name:'個包装のお菓子詰め合わせ', note:'配りやすく衣装を汚しにくい個包装が鉄板', q:'お菓子 個包装 詰め合わせ'},
   {cat:'sweets', name:'ミンティア・タブレット', note:'かさばらない気配り枠', q:'ミンティア'},
