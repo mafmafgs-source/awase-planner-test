@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>併せPlanner</title>
+<title>併せーる</title>
 <!-- ホーム画面に追加（iPhone の Safari はしばらく開かないとデータを消すことがあるが、ホーム画面から開けば消えにくい） -->
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#ffffff">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="併せPlanner">
+<meta name="apple-mobile-web-app-title" content="併せーる">
 <script>try{var t=localStorage.getItem('awaseThemeNow');if(t==null)t=localStorage.getItem('awaseTheme');if(t&&t!=='mono')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <style>
 :root{
@@ -486,7 +486,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
     <button onclick="newEvent()">＋ 新規</button>
   </div>
   <header>
-    <h1 id="hTitle">併せPlanner</h1>
+    <h1 id="hTitle">併せーる</h1>
     <button class="hbtn txt" id="meBtn" onclick="showMyPage()">マイページ</button>
     <button class="hbtn txt" id="invBtn" onclick="showInvite()">招待</button>
   </header>
@@ -496,7 +496,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 <nav class="tabs" id="tabbar"></nav>
 <div id="modalHost"></div>
 <script>
-/* ============ 併せPlanner core ============ */
+/* ============ 併せーる core ============ */
 'use strict';
 
 /* 9/24 に WEB版とフル版を統合: 本番（jyounetsu.site/awase/）もフル版と同じ中身（LITE=false）。
@@ -3016,7 +3016,7 @@ function standaloneWelcome(tries){
   <div class="modal">
     <div class="box">
       <h3>Safari で使っていたデータを引き継ぎますか？</h3>
-      <div style="font-size:13.5px;line-height:1.8">ホーム画面から開いた併せPlannerは、Safari とデータの置き場所が別です。Safari でコピーした<b>復元コード</b>を入れると、併せの一覧や主催の権限をそのまま使えます。</div>
+      <div style="font-size:13.5px;line-height:1.8">ホーム画面から開いた併せーるは、Safari とデータの置き場所が別です。Safari でコピーした<b>復元コード</b>を入れると、併せの一覧や主催の権限をそのまま使えます。</div>
       <input type="text" id="homeCode" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" style="margin-top:10px">
       <button class="btn sec wide" onclick="homePaste()">コピーしたコードを貼り付け</button>
       <button class="btn wide" onclick="homeLink()">引き継ぐ</button>
@@ -3114,7 +3114,7 @@ function showTerms(done){
   document.getElementById('modalHost').innerHTML = `
   <div class="modal">
     <div class="box">
-      <h3>併せPlanner へようこそ</h3>
+      <h3>併せーる へようこそ</h3>
       <div style="font-size:13.5px;line-height:1.8">
         はじめに、<a href="${WEB_BASE}terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>をご確認ください。<br>
         特に、次のような内容は<b>投稿できません</b>（見つけた場合は削除します）。
