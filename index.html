@@ -399,6 +399,22 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   border-bottom-color:#2e6fb0; color:#1c4d80;
   background:#f3f8fd; border-radius:6px 6px 0 0;
 }
+/* 確定メンバー・カメラマン・アシスタントの枠（長い募集シートの中で見分けやすく）／招待画面の役割ごとの枠 */
+.grpbox{background:#f4f4f5; border:1px solid #e4e4e7; border-radius:12px; padding:2px 14px 14px; margin:26px -6px 0;}
+.grpbox .grplead{font-size:12.5px; color:#555; background:#fff; border:1px solid #ececef; border-radius:8px; padding:8px 10px; margin:12px 0 0; line-height:1.6;}
+.grpbox .sech{margin-top:16px;}
+.doc .grpbox input[type=text]{background:#fff; border-bottom-color:#d4d4d8; border-radius:6px 6px 0 0; padding:7px 6px;}
+.doc .grpbox input.filled{background:#f3f8fd; border-bottom-color:#2e6fb0;}
+.invbox{background:#f4f4f5; border:1px solid #e4e4e7; border-radius:12px; padding:12px 12px 8px; margin:12px 0 0;}
+.invbox .invh{font-size:13.5px; font-weight:800;}
+.invbox .note{margin:2px 0 8px;}
+.invrow{display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #ececef; border-radius:8px; padding:6px 8px; margin:6px 0;}
+.invrow .nm{flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.invrow .btn{flex:0 0 auto; margin:0;}
+.invrow label.sent{flex:0 0 auto; display:flex; align-items:center; gap:3px; font-size:12px; color:var(--sub); white-space:nowrap; cursor:pointer;}
+.invrow label.sent input{width:18px; height:18px; margin:0; accent-color:var(--tx);}
+.invrow.done{background:#f7f7f8;}
+.invrow.done .nm{color:var(--sub);}
 .dtlcv{width:100%; max-width:400px; border:1px solid var(--line); border-radius:6px; margin:10px auto 4px; display:block;}
 /* 併せページ（表示専用） */
 .rotitle{font-size:22px; font-weight:800; border-bottom:2px solid var(--tx); padding:4px 2px 8px;}
@@ -1083,9 +1099,10 @@ function renderInfo(){
     ${S('notes')?`<textarea rows="3" placeholder="例：&#10;スタジオ料金はレイヤーで負担&#10;プレゼント交換は予算1500円を検討" oninput="uf('notes',this.value)">${esc(e.notes)}</textarea>
     ${presetHTML(e,'notes')}`:''}
 
+    <div class="grpbox">
+    <div class="grplead">確定メンバー・カメラマン・アシスタントは「併せ」タブ（進捗タブも）に反映されます。メンバーが確定したら随時入力してください。</div>
     ${sechHTML(e,'members','【確定メンバー】','キャラ / 名前 / @ID')}
-    ${S('members')?`<div class="note" style="margin:0 0 6px">ここに入力したメンバーは、参加者向けの「併せ」ページと進捗タブにも自動で反映されます</div>
-    <div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
+    ${S('members')?`<div id="memList">${e.members.map((m,i)=>memRow(m,i)).join('')}</div>
     <button class="btn sec sm" onclick="addMem()">＋ メンバーを追加</button>`:''}
 
     ${sechHTML(e,'cameras','【カメラマン】')}
@@ -1095,6 +1112,7 @@ function renderInfo(){
     ${sechHTML(e,'assistants','【アシスタント】')}
     ${S('assistants')?`<div id="asList">${e.assistants.map((a,i)=>asRow(a,i)).join('')}</div>
     <button class="btn sec sm" onclick="addAs()">＋ アシスタントを追加</button>`:''}
+    </div>
 
     ${sechHTML(e,'hashtag','【ハッシュタグ】')}
     ${S('hashtag')?`<input type="text" value="${esc(e.hashtag)}" placeholder="例：#○○併せ" oninput="uf('hashtag',this.value)">`:''}
@@ -3552,29 +3570,52 @@ function inviteMessage(e, role, url, personal){
   lines.push(url);
   return lines.join('\n');
 }
-function copyCameraInvite(i){
+function copyCameraInvite(i, btn){
   const e = ev();
   const c = e.cameras[i];
   if(!c) return;
   if(!c.ikey){ c.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + c.ikey;
-  copyText(inviteMessage(e, 'カメラマン', url, true));
+  copyText(inviteMessage(e, 'カメラマン', url, true), true);
+  invCopied(btn);
 }
-function copySubInvite(i){
+function copySubInvite(i, btn){
   const e = ev();
   const h = (e.subHosts||[])[i];
   if(!h) return;
   if(!h.ikey){ h.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + h.ikey;
-  copyText(inviteMessage(e, '副主催', url, true));
+  copyText(inviteMessage(e, '副主催', url, true), true);
+  invCopied(btn);
 }
-function copyMemberInvite(i){
+function copyMemberInvite(i, btn){
   const e = ev();
   const m = e.members[i];
   if(!m) return;
   if(!m.ikey){ m.ikey = uid(); save(); }
   const url = inviteURL(e) + '&m=' + m.ikey;
-  copyText(inviteMessage(e, m.chara? `${m.chara}役` : 'メンバー', url, true));
+  copyText(inviteMessage(e, m.chara? `${m.chara}役` : 'メンバー', url, true), true);
+  invCopied(btn);
+}
+/* 招待リンクの「送った」チェック（この端末だけ。枠キー ikey ごと＝行を消したり並べ替えてもずれない） */
+function invCopied(btn){ if(btn){ btn.textContent = 'コピーしました'; setTimeout(()=>{ btn.textContent = 'リンクをコピー'; }, 2500); } }
+function invSentMap(){ return lsJson('awaseInvSent', {}); }
+function invSentToggle(el, kind, i){
+  const x = (ev()[kind]||[])[i];
+  if(!x || !x.ikey){ el.checked = false; toast('先に「リンクをコピー」して送ってください'); return; }
+  const m = invSentMap();
+  if(el.checked) m[x.ikey] = Date.now(); else delete m[x.ikey];
+  lsSet('awaseInvSent', JSON.stringify(m));
+  const row = el.closest('.invrow'); if(row) row.classList.toggle('done', el.checked);
+}
+function invRow(kind, i, label, fn){
+  const x = ev()[kind][i];
+  const sent = !!(x.ikey && invSentMap()[x.ikey]);
+  return `<div class="invrow ${sent?'done':''}">
+    <span class="nm">${label}</span>
+    <button class="btn sec sm" onclick="${fn}(${i},this)">リンクをコピー</button>
+    <label class="sent"><input type="checkbox" ${sent?'checked':''} onchange="invSentToggle(this,'${kind}',${i})">送った</label>
+  </div>`;
 }
 
 /* ---- 招待（メンバー・カメラマン向け） ---- */
@@ -3614,40 +3655,38 @@ function showInvite(){
     <div class="box">
       <h3>メンバーを招待</h3>
       ${url && canHost(e) && e.members.length? `
-      <div style="font-size:13.5px;font-weight:800">メンバー別の招待リンク</div>
-      <div class="note" style="margin:2px 0 8px">確定メンバー本人のXアカウントへDMで送ってください。開いた人は<b>その枠に自動で紐づき、名前の入力も不要</b>です。</div>
-      ${e.members.map((m,i)=>`<div class="row" style="margin:6px 0">
-        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}</span>
-        <button class="btn sec sm fix" onclick="copyMemberInvite(${i})">リンクをコピー</button>
-      </div>`).join('')}
-      ${(e.subHosts||[]).filter(h=>h.name).length?`
-      <div style="font-size:13.5px;font-weight:800;margin-top:16px">副主催の招待リンク</div>
-      <div class="note" style="margin:2px 0 8px">開いた時点で主催と同じ操作ができるようになります。信頼できる方にだけ送ってください。</div>
-      ${(e.subHosts||[]).map((h,i)=>h.name?`<div class="row" style="margin:6px 0">
-        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.name)}さん</span>
-        <button class="btn sec sm fix" onclick="copySubInvite(${i})">リンクをコピー</button>
-      </div>`:'').join('')}`:''}
-      ${e.cameras.filter(c=>c.name).length?`
-      <div style="font-size:13.5px;font-weight:800;margin-top:16px">カメラマン別の招待リンク</div>
-      <div class="note" style="margin:2px 0 8px">本人に送ると、その方だけが自分の撮影データ欄を編集できるようになります。</div>
-      ${e.cameras.map((c,i)=>c.name?`<div class="row" style="margin:6px 0">
-        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}さん</span>
-        <button class="btn sec sm fix" onclick="copyCameraInvite(${i})">リンクをコピー</button>
-      </div>`:'').join('')}`:''}
-      <div style="font-size:13.5px;font-weight:800;margin-top:16px">共通の招待リンク</div>
-      <div class="note" style="margin:2px 0 8px">アシスタントなど、枠のない方はこちらを。</div>`:''}
+      <div class="note" style="margin:0 0 4px">リンクをコピーして本人に送ったら「送った」にチェックを付けておくと、送り忘れ・送り間違いを防げます（チェックはこの端末だけに残ります）。</div>
+      <div class="invbox">
+      <div class="invh">メンバー別の招待リンク</div>
+      <div class="note">確定メンバー本人のXアカウントへDMで送ってください。開いた人は<b>その枠に自動で紐づき、名前の入力も不要</b>です。</div>
+      ${e.members.map((m,i)=>invRow('members', i, `${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}`, 'copyMemberInvite')).join('')}
+      </div>
+      ${(e.subHosts||[]).filter(h=>h.name).length?`<div class="invbox">
+      <div class="invh">副主催の招待リンク</div>
+      <div class="note">開いた時点で主催と同じ操作ができるようになります。信頼できる方にだけ送ってください。</div>
+      ${(e.subHosts||[]).map((h,i)=>h.name? invRow('subHosts', i, `${esc(h.name)}さん`, 'copySubInvite') : '').join('')}
+      </div>`:''}
+      ${e.cameras.filter(c=>c.name).length?`<div class="invbox">
+      <div class="invh">カメラマン別の招待リンク</div>
+      <div class="note">本人に送ると、その方だけが自分の撮影データ欄を編集できるようになります。</div>
+      ${e.cameras.map((c,i)=>c.name? invRow('cameras', i, `${esc(c.name)}さん`, 'copyCameraInvite') : '').join('')}
+      </div>`:''}
+      <div class="invbox" style="margin-bottom:12px">
+      <div class="invh">共通の招待リンク</div>
+      <div class="note">アシスタントなど、枠のない方はこちらを。</div>`:''}
       <div style="font-size:13.5px;line-height:1.8;margin-bottom:10px">
         ${url? (canHost(e)&&e.members.length? '' : 'このリンクをLINEやDMで送るだけ。<br>相手は<b>開くだけで参加完了</b>です！')
              : 'この招待コードをLINEやDMで送ってください。'}
       </div>
-      ${url? `<div style="background:var(--acbg);border-radius:10px;padding:10px;font-size:12px;word-break:break-all">${esc(url)}</div>`
+      ${url? `<div style="background:${canHost(e)&&e.members.length?'#fff;border:1px solid #ececef':'var(--acbg)'};border-radius:10px;padding:10px;font-size:12px;word-break:break-all">${esc(url)}</div>`
            : `<div style="background:var(--acbg);border-radius:12px;padding:14px;text-align:center;font-size:22px;font-weight:800;letter-spacing:.05em;color:var(--ac)">${esc(e.sync.room)}</div>`}
       <button class="btn wide" onclick="copyText(${JSON.stringify(shareText).replace(/"/g,'&quot;')})">招待メッセージをコピー</button>
+      ${url && canHost(e) && e.members.length? '</div>' : ''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
 }
-function copyText(t){
+function copyText(t, keep){
   const fallback = ()=>{
     try{
       const ta=document.createElement('textarea'); ta.value=t; document.body.appendChild(ta);
@@ -3660,7 +3699,7 @@ function copyText(t){
     }else fallback();
   }catch(err){ fallback(); }
   toast('コピーしました');
-  closeModal();
+  if(!keep) closeModal();
 }
 function joinPrompt(){
   const code = prompt('招待コード（またはリンク）を貼り付けてください');
