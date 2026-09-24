@@ -2002,12 +2002,18 @@ function loadSqRank(){
     .then(d=>{ if(d && Array.isArray(d.items)){ sqRank = d.items; if(curTab==='items') affRefresh(); } })
     .catch(()=>{});
 }
+/* 「探す」＝そのまま Amazon の検索結果を開く（禁止語なら開かない）。
+   iPhone は「押した直後」でないと新しいタブを開けないので、先に空のタブを開いておき、確認が済んでから行き先を入れる */
 async function sqSearch(term, record){
   if(term==null){ const el = document.getElementById('sqInput'); term = el ? el.value : ''; }
   term = String(term||'').trim().replace(/\s+/g,' ').slice(0,30);
   if(!term) return;
-  try{ await ngLoad(); }catch(err){ sqQuery = ''; sqBlocked = '通信できないため、いまは検索できません。電波の良い場所でもう一度お試しください。'; renderTab(); return; }
+  let win = null;
+  try{ win = window.open('', '_blank'); }catch(e){}
+  const cancel = ()=>{ try{ if(win) win.close(); }catch(e){} };
+  try{ await ngLoad(); }catch(err){ cancel(); sqQuery = ''; sqBlocked = '通信できないため、いまは検索できません。電波の良い場所でもう一度お試しください。'; renderTab(); return; }
   if(ngHit(term)){
+    cancel();
     sqQuery = '';
     sqBlocked = 'この言葉では検索できません（未成年の方も使うため、お酒・たばこ・医薬品・成人向けの商品は扱っていません）。';
     renderTab(); return;
@@ -2015,10 +2021,13 @@ async function sqSearch(term, record){
   sqBlocked = '';
   sqQuery = term;
   if(record !== false && syncReady()) apiPost({op:'sq', term}).catch(()=>{});
+  const url = amazonSearchUrl(term);
+  if(win){ try{ win.opener = null; }catch(e){} win.location.href = url; }
+  else{ try{ window.open(url, '_blank', 'noopener'); }catch(e){ location.href = url; } }
   renderTab();
 }
 function sqLinks(q){
-  return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">Amazon で探す</a>`;
+  return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">もう一度開く</a>`;
 }
 function affHTML(){
   loadSqRank();
@@ -2053,13 +2062,13 @@ function affHTML(){
 
   <div class="card">
     <h3>差し入れを探す</h3>
-    <div class="note" style="margin:0 0 8px">商品名で探してみてください。みんなの検索が「みんなが探している差し入れ」ランキングに反映されて、次に差し入れを選ぶ人の参考になります。</div>
+    <div class="note" style="margin:0 0 8px">商品名を入れて「探す」を押すと Amazon の検索結果が開きます <span class="pr">PR</span>。みんなの検索が「みんなが探している差し入れ」ランキングに反映されて、次に差し入れを選ぶ人の参考になります。</div>
     <div class="row">
       <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：めぐりズム、ミンティア" onkeydown="if(event.key==='Enter')sqSearch()">
       <button class="btn sec sm fix" onclick="sqSearch()">探す</button>
     </div>
     ${sqBlocked? `<div class="sqres" style="color:var(--sub)">${esc(sqBlocked)}</div>`:''}
-    ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を ${sqLinks(sqQuery)} で見る <span class="pr">PR</span><br>
+    ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を Amazon で開きました（${sqLinks(sqQuery)}）<span class="pr">PR</span><br>
       <button class="sqadd" data-n="${esc(sqQuery)}" onclick="addNameToList(this.dataset.n)">忘れ物リストに入れる</button></div>`:''}
 
     <div class="secttl" style="margin-top:16px">みんなが探している差し入れ${comm && comm.items.length? ' <span class="pr">PR</span>':''}</div>
