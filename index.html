@@ -445,8 +445,12 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .invbox .invh{font-size:13.5px; font-weight:800;}
 .invbox .note{margin:2px 0 8px;}
 .invrow{display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #ececef; border-radius:8px; padding:6px 8px; margin:6px 0;}
-.invrow .nm{flex:1; min-width:0; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.invrow .nm{flex:1; min-width:0; font-size:13px; line-height:1.35; word-break:break-all;}
+.invrow .nm b{font-weight:800;}
+.invrow .xid{background:none; border:none; padding:0 2px; font:inherit; font-size:12px; color:var(--ink); text-decoration:underline; text-underline-offset:2px; cursor:pointer; white-space:nowrap;}
 .invrow .btn{flex:0 0 auto; margin:0;}
+.invrow .btn.cp{width:40px; height:34px; padding:0; font-size:18px; line-height:1;}
+.invrow .btn.cp.ok{background:var(--pri); color:var(--pri-tx); border-color:var(--pri);}
 .invrow label.sent{flex:0 0 auto; display:flex; align-items:center; gap:3px; font-size:12px; color:var(--sub); white-space:nowrap; cursor:pointer;}
 .invrow label.sent input{width:18px; height:18px; margin:0; accent-color:var(--tx);}
 .invrow.done{background:#f7f7f8;}
@@ -3762,7 +3766,7 @@ function copyMemberInvite(i, btn){
   invCopied(btn);
 }
 /* 招待リンクの「送った」チェック（この端末だけ。枠キー ikey ごと＝行を消したり並べ替えてもずれない） */
-function invCopied(btn){ if(btn){ btn.textContent = 'コピーしました'; setTimeout(()=>{ btn.textContent = 'リンクをコピー'; }, 2500); } }
+function invCopied(btn){ if(btn){ btn.classList.add('ok'); btn.innerHTML = '<span class="ic">✓</span>'; setTimeout(()=>{ btn.classList.remove('ok'); btn.innerHTML = '<span class="ic">⧉</span>'; }, 2500); } }
 function invSentMap(){ return lsJson('awaseInvSent', {}); }
 function invSentToggle(el, kind, i){
   const x = (ev()[kind]||[])[i];
@@ -3772,12 +3776,15 @@ function invSentToggle(el, kind, i){
   lsSet('awaseInvSent', JSON.stringify(m));
   const row = el.closest('.invrow'); if(row) row.classList.toggle('done', el.checked);
 }
-function invRow(kind, i, label, fn){
-  const x = ev()[kind][i];
+/* 招待の 1 行: キャラ／名前（折り返して全部見せる）＋ @ID（タップで X のプロフィール）＋ コピー（アイコン）＋「送った」 */
+function invRow(kind, i, x, fn){
   const sent = !!(x.ikey && invSentMap()[x.ikey]);
+  const h = xHandle(x.tw);
+  const chara = kind==='members' ? (esc(x.chara)||('枠'+(i+1))) : '';
+  const name = esc(x.name||'');
   return `<div class="invrow ${sent?'done':''}">
-    <span class="nm">${label}</span>
-    <button class="btn sec sm" onclick="${fn}(${i},this)">リンクをコピー</button>
+    <span class="nm">${chara? `<b>${chara}</b>${name? '　'+name : ''}` : name}${h? ` <button class="xid" onclick="openX('${h}')">${esc(at(h))}</button>` : ''}</span>
+    <button class="btn sec sm cp" aria-label="招待リンクをコピー" title="招待リンクをコピー" onclick="${fn}(${i},this)"><span class="ic">⧉</span></button>
     <label class="sent"><input type="checkbox" ${sent?'checked':''} onchange="invSentToggle(this,'${kind}',${i})">送った</label>
   </div>`;
 }
@@ -3819,21 +3826,21 @@ function showInvite(){
     <div class="box">
       <h3>メンバーを招待</h3>
       ${url && canHost(e) && e.members.length? `
-      <div class="note" style="margin:0 0 4px">リンクをコピーして本人に送ったら「送った」にチェックを付けておくと、送り忘れ・送り間違いを防げます（チェックはこの端末だけに残ります）。</div>
+      <div class="note" style="margin:0 0 4px">⧉ でその人の招待リンクをコピーして、本人に送ってください。@ID をタップすると X のプロフィールが開きます。送ったら「送った」にチェックを付けておくと、送り忘れ・送り間違いを防げます（チェックはこの端末だけに残ります）。</div>
       <div class="invbox">
       <div class="invh">メンバー別の招待リンク</div>
       <div class="note">確定メンバー本人のXアカウントへDMで送ってください。開いた人は<b>その枠に自動で紐づき、名前の入力も不要</b>です。</div>
-      ${e.members.map((m,i)=>invRow('members', i, `${esc(m.chara)||('枠'+(i+1))}${m.name?'　'+esc(m.name):''}`, 'copyMemberInvite')).join('')}
+      ${e.members.map((m,i)=>invRow('members', i, m, 'copyMemberInvite')).join('')}
       </div>
       ${(e.subHosts||[]).filter(h=>h.name).length?`<div class="invbox">
       <div class="invh">副主催の招待リンク</div>
       <div class="note">開いた時点で主催と同じ操作ができるようになります。信頼できる方にだけ送ってください。</div>
-      ${(e.subHosts||[]).map((h,i)=>h.name? invRow('subHosts', i, `${esc(h.name)}さん`, 'copySubInvite') : '').join('')}
+      ${(e.subHosts||[]).map((h,i)=>h.name? invRow('subHosts', i, h, 'copySubInvite') : '').join('')}
       </div>`:''}
       ${e.cameras.filter(c=>c.name).length?`<div class="invbox">
       <div class="invh">カメラマン別の招待リンク</div>
       <div class="note">本人に送ると、その方だけが自分の撮影データ欄を編集できるようになります。</div>
-      ${e.cameras.map((c,i)=>c.name? invRow('cameras', i, `${esc(c.name)}さん`, 'copyCameraInvite') : '').join('')}
+      ${e.cameras.map((c,i)=>c.name? invRow('cameras', i, c, 'copyCameraInvite') : '').join('')}
       </div>`:''}
       <div class="invbox" style="margin-bottom:12px">
       <div class="invh">共通の招待リンク</div>
