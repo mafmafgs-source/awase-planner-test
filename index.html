@@ -405,6 +405,10 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .grpbox .sech{margin-top:16px;}
 .doc .grpbox input[type=text]{background:#fff; border-bottom-color:#d4d4d8; border-radius:6px 6px 0 0; padding:7px 6px;}
 .doc .grpbox input.filled{background:#f3f8fd; border-bottom-color:#2e6fb0;}
+.copyline{display:flex; align-items:center; gap:8px; background:var(--acbg); border-radius:8px; padding:6px 6px 6px 10px; margin:10px 0 0;}
+.copyline .v{flex:1; min-width:0; font-size:12px; word-break:break-all; line-height:1.5; color:var(--tx);}
+.copyline .v.code{font-size:14px; font-weight:800; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal;}
+.copyline .btn{flex:0 0 auto; margin:0;}
 .invbox{background:#f4f4f5; border:1px solid #e4e4e7; border-radius:12px; padding:12px 12px 8px; margin:12px 0 0;}
 .invbox .invh{font-size:13.5px; font-weight:800;}
 .invbox .note{margin:2px 0 8px;}
@@ -645,10 +649,10 @@ function showList(){
           <div style="margin-bottom:8px;font-size:12px;color:var(--sub)">マイページ：${esc(myName())||'名前未設定'}${myTw()?`（${esc(at(myTw()))}）`:''}
             <button class="btn ghost sm" onclick="closeModal();showMyPage()" style="margin-left:6px">変更</button></div>
           ${bkAvailable()? `<div style="margin-bottom:10px;font-size:12px;color:var(--sub)">自動バックアップ：${esc(bkLastText())}（復元コードはマイページから）</div>
-          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">復元コード・ほかの端末と連携</button>
-          <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ・つなぐ</button>
+          <button class="btn ghost sm" onclick="closeModal();showBkCode(false)">復元コード・PC・タブレットでも使う</button>
+          <button class="btn ghost sm" onclick="closeModal();bkRestorePrompt()" style="margin-left:6px">コードで引き継ぐ</button>
           <div style="margin:12px 0 6px;font-size:12px;color:var(--sub)">ファイルでのバックアップ</div>`:''}
-          ${canA2hs()? `<div style="margin-bottom:10px"><button class="btn ghost sm" onclick="closeModal();showA2hs()">ホーム画面に追加する（データが消えにくくなります）</button></div>` : ''}
+          ${canA2hs()? `<div style="margin-bottom:10px"><button class="btn ghost sm" onclick="closeModal();showA2hs()">ホーム画面に追加するには（データが消えにくくなります）</button></div>` : ''}
           <button class="btn ghost sm" onclick="exportJSON()">データをファイルに保存</button>
           <button class="btn ghost sm" onclick="importJSON()" style="margin-left:6px">ファイルから復元</button>
           <div style="margin-top:10px;font-size:12px"><a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener" style="color:var(--sub)">プライバシーポリシー</a></div>
@@ -2760,41 +2764,26 @@ function showBkCode(first, next){
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>${first? '復元コードを控えておきましょう' : 'バックアップ・ほかの端末と連携'}</h3>
+      <h3>${first? '復元コードを控えておきましょう' : '復元コード・PC・タブレットでも使う'}</h3>
       <div style="font-size:13.5px;line-height:1.8">
         この端末のデータ（併せの一覧・主催の権限・忘れ物チェックなど）は自動でバックアップされています。<br>
         機種変更やアプリの削除のときは、新しい端末でこの<b>復元コード</b>を入れると元どおりになります。
       </div>
-      <div style="background:var(--acbg);border-radius:10px;padding:14px;margin:12px 0 6px;text-align:center;font-size:20px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
-      <div class="note" style="margin:0 0 10px">スクリーンショットかメモで控えてください。このコードを知っている人はデータを使えるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
-      <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
-      ${canA2hs()? `<div class="secttl" style="margin-top:14px">データを消えにくくする</div>
-      <div class="note" style="margin:0 0 8px">${isIOS()? 'iPhone の Safari は、しばらく開かないとサイトのデータを消すことがあります。' : ''}ホーム画面に追加して、そこから開くと消えにくくなります。</div>
-      <button class="btn sec wide" onclick="showA2hs()">ホーム画面に追加する</button>` : ''}
+      <div class="copyline"><span class="v code">${esc(code)}</span><button class="btn sec sm" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')}, true)">コピー</button></div>
+      <div class="note" style="margin:4px 0 0">スクリーンショットかメモで控えてください。このコードを知っている人はデータを使えるので、他の人には教えないでください。（${esc(bkLastText())}）</div>
+      ${a2hsSteps()? `<div class="secttl" style="margin-top:14px">データを消えにくくする</div>
+      <div class="note" style="margin:0">${a2hsSteps()}</div>` : ''}
       <div class="secttl" style="margin-top:14px">PC・タブレットでも使う</div>
-      <div class="note" style="margin:0 0 8px">ほかの端末でこのQRコードを読み込むか、リンクを開くと、この端末と同じデータになり、以後は自動で揃います（主催の権限もそのまま使えます）。<b>自分の端末だけ</b>で開いてください。</div>
-      <div id="vQr" style="display:flex;justify-content:center;margin:6px 0 10px;min-height:40px"></div>
-      <button class="btn sec wide" onclick="copyText(${JSON.stringify(url).replace(/"/g,'&quot;')})">つなぐリンクをコピー</button>
+      <div class="note" style="margin:0 0 6px">PC・タブレットでこのリンクを開くと、この端末と同じデータになり、以後は自動で揃います（主催の権限もそのまま使えます）。<b>自分の端末だけ</b>で開いてください。</div>
+      <div class="copyline"><span class="v">${esc(url)}</span><button class="btn sec sm" onclick="copyText(${JSON.stringify(url).replace(/"/g,'&quot;')}, true)">コピー</button></div>
       ${first? `<div class="note" style="margin:10px 0 0;text-align:center">このコードは、あとから「マイページ」でいつでも確認できます。</div>` : ''}
       ${next? `<button class="btn wide" onclick="closeModal();${next}">OK（招待へ進む）</button>` : `<button class="btn sec wide" onclick="closeModal()">閉じる</button>`}
     </div>
   </div>`;
-  vQr(url);
 }
-/* QRコード（qrcode-generator を必要なときだけ読み込む） */
-function vQr(url){
-  const box = document.getElementById('vQr');
-  if(!box) return;
-  const draw = ()=>{ try{ const q = qrcode(0, 'M'); q.addData(url); q.make(); box.innerHTML = q.createSvgTag({cellSize:4, margin:2}); }catch(e){ box.innerHTML = ''; } };
-  if(window.qrcode) return draw();
-  const sc = document.createElement('script');
-  sc.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js';
-  sc.onload = draw; sc.onerror = ()=>{ box.innerHTML = ''; };
-  document.head.appendChild(sc);
-}
-/* 復元コード（またはつなぐリンク）で、この端末をつなぐ／元に戻す */
+/* 復元コード（または PC・タブレット用のリンク）で、この端末に引き継ぐ／元に戻す */
 async function vLinkWithCode(code){
-  if(!bkAvailable()){ toast('いまはつなげません（通信できる状態でお試しください）'); return; }
+  if(!bkAvailable()){ toast('いまは引き継げません（通信できる状態でお試しください）'); return; }
   const n = bkNorm(code);
   if(n.length !== 16){ toast('復元コードは16文字です'); return; }
   try{
@@ -2804,15 +2793,15 @@ async function vLinkWithCode(code){
     if(remote && remote.keys) remote = vFromV1(remote);
     const cnt = (remote.events||[]).length;
     const mine = state.events.filter(hasContent).length;
-    if(!confirm(`併せ ${cnt} 件のデータが見つかりました。\nこの端末とつなぎますか？${mine? `\n（この端末にある ${mine} 件の併せも残して、合わせます）` : ''}`)) return;
+    if(!confirm(`併せ ${cnt} 件のデータが見つかりました。\nこの端末に引き継ぎますか？${mine? `\n（この端末にある ${mine} 件の併せも残して、合わせます）` : ''}`)) return;
     lsSet('awaseBkCode', bkFormat(n));
     vVer = 0; vCache = null;
     await vSync();
-    toast('つなぎました');
+    toast('引き継ぎました');
     setTimeout(()=>location.reload(), 700);
   }catch(err){
     console.warn(err);
-    toast(err && err.status===404 ? 'このコードのデータが見つかりません。コードを確かめてください' : 'つなげませんでした。コードと通信状態を確かめてください');
+    toast(err && err.status===404 ? 'このコードのデータが見つかりません。コードを確かめてください' : '引き継げませんでした。コードと通信状態を確かめてください');
   }
 }
 function bkRestorePrompt(){
@@ -2842,14 +2831,24 @@ function askPersist(){
   persistAsked = true;
   try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persisted().then(p=>{ if(!p) return navigator.storage.persist(); }).catch(()=>{}); }catch(e){}
 }
-let a2hsEvt = null;
-window.addEventListener('beforeinstallprompt', ev0=>{ ev0.preventDefault(); a2hsEvt = ev0; });
-function canA2hs(){ return !isStandalone() && (isIOS() || !!a2hsEvt); }
+function isAndroid(){ return /Android/.test(navigator.userAgent || ''); }
+function canA2hs(){ return !isStandalone() && (isIOS() || isAndroid()); }
+/* ホーム画面に追加するやり方（文章だけ。押しても何も起きないボタンは置かない） */
+function a2hsSteps(){
+  if(!canA2hs()) return '';
+  if(isIOS()) return 'iPhone の Safari は、しばらく開かないとサイトのデータを消すことがあります。Safari の共有メニューから「ホーム画面に追加」を選び、以後はホーム画面のアイコンから開くと消えにくくなります。ホーム画面から初めて開いたときは、上の復元コードを入れると今のデータを引き継げます。';
+  return 'Chrome のメニューから「ホーム画面に追加」（または「アプリをインストール」）を選ぶと、ホーム画面から開けるようになり、データも消えにくくなります。';
+}
 function showA2hs(){
   if(!isIOS()){
-    if(!a2hsEvt){ toast('このブラウザではホーム画面に追加できません'); return; }
-    a2hsEvt.prompt();
-    a2hsEvt.userChoice.finally(()=>{ a2hsEvt = null; });
+    document.getElementById('modalHost').innerHTML = `
+    <div class="modal" onclick="if(event.target===this)closeModal()">
+      <div class="box">
+        <h3>ホーム画面に追加するには</h3>
+        <div style="font-size:13.5px;line-height:1.8">${a2hsSteps() || 'このブラウザでは、ブラウザのメニューからホーム画面に追加できる場合があります。'}</div>
+        <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      </div>
+    </div>`;
     return;
   }
   const code = bkAvailable()? bkCode() : '';
@@ -2857,14 +2856,14 @@ function showA2hs(){
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>ホーム画面に追加する</h3>
+      <h3>ホーム画面に追加するには</h3>
       <div style="font-size:13.5px;line-height:1.8">
         iPhone の Safari は、しばらく開かないとサイトのデータ（併せの一覧・主催の権限など）を消すことがあります。ホーム画面に追加して、<b>そこから開く</b>と消えにくくなります。
       </div>
       ${code? `<div class="note" style="margin:10px 0 6px">ホーム画面から開いたときは Safari とデータの置き場所が別になるので、今のデータを<b>復元コード</b>で引き継ぎます。</div>
       <div class="secttl" style="margin-top:12px">① 復元コードをコピー</div>
       <div style="background:var(--acbg);border-radius:10px;padding:10px;margin:6px 0;text-align:center;font-size:18px;font-weight:800;letter-spacing:.06em">${esc(code)}</div>
-      <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')})">コードをコピー</button>
+      <button class="btn wide" onclick="copyText(${JSON.stringify(code).replace(/"/g,'&quot;')}, true)">コードをコピー</button>
       <div class="secttl" style="margin-top:12px">② ホーム画面に追加</div>
       <div class="note" style="margin:4px 0">Safari の共有メニューから「ホーム画面に追加」を選びます。</div>
       <div class="secttl" style="margin-top:12px">③ ホーム画面のアイコンから開く</div>
@@ -3018,9 +3017,9 @@ function showMyPage(){
       <div style="font-size:12px;color:var(--sub);margin:10px 0 2px">Xの@ID</div>
       <input type="text" id="meTw" value="${esc(myTw())}" placeholder="@ID（プロフィールURL貼り付けOK）" oninput="meTwInput(this)">
       <button class="btn wide" onclick="saveMyPage()">保存</button>
-      ${bkAvailable()? `<div class="secttl" style="margin-top:18px">復元コード（バックアップ・ほかの端末と連携）</div>
-      <div class="note" style="margin:0 0 8px">併せの一覧・主催の権限・マイページなどは自動でバックアップされています（${esc(bkLastText())}）。機種変更やデータが消えたときは、復元コードで元に戻せます。PC・タブレットとつなぐのもここから。</div>
-      <button class="btn sec wide" onclick="saveMyPage(true);closeModal();showBkCode(false)">復元コードを表示・ほかの端末とつなぐ</button>
+      ${bkAvailable()? `<div class="secttl" style="margin-top:18px">復元コード（バックアップ・PC・タブレットでも使う）</div>
+      <div class="note" style="margin:0 0 8px">併せの一覧・主催の権限・マイページなどは自動でバックアップされています（${esc(bkLastText())}）。機種変更やデータが消えたときは、復元コードで元に戻せます。</div>
+      <button class="btn sec wide" onclick="saveMyPage(true);closeModal();showBkCode(false)">復元コードを表示・PC・タブレットでも使う</button>
       <button class="btn sec wide" onclick="saveMyPage(true);closeModal();bkRestorePrompt()">コードで引き継ぐ</button>` : ''}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
