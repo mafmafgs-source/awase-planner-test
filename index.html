@@ -3301,6 +3301,9 @@ const pushTimers = {};
 function syncReady(){ return !!SYNC_API; }
 function imgApiReady(){ return !!SYNC_API; }
 
+/* 1 日の全体上限に達したとき（荒らし対策の安全弁）の案内。連発しないよう 1 分に 1 回 */
+let busyAt = 0;
+function busyNotice(){ if(Date.now() - busyAt < 60000) return; busyAt = Date.now(); toast('いまはサーバーが混み合っているため、新しい併せ・画像・バックアップの保存を一時的に受け付けていません。明日また試してください（入力した内容はこの端末に残ります）'); }
 /* ---- サーバーとの通信 ----
    POST の本文は base64url(JSON)・Content-Type は text/plain。
    ロリポップの WAF（入力文の <script> 等で弾く）と、CORS のプリフライト（OPTIONS が PHP に届かない）を避けるため。 */
@@ -3325,7 +3328,12 @@ function deviceSecret(){
 async function apiPost(obj){
   obj = Object.assign({me: clientId(), ms: deviceSecret()}, obj);
   const r = await fetch(SYNC_API, {method:'POST', headers:{'Content-Type':'text/plain'}, body: b64u(JSON.stringify(obj))});
-  if(!r.ok) throw Object.assign(new Error('api '+r.status), {status:r.status});
+  if(!r.ok){
+    let code = '';
+    try{ code = String((await r.json()).error || ''); }catch(e){}
+    if(code === 'busy') busyNotice();   // 1 日の全体上限（荒らし対策）に達した
+    throw Object.assign(new Error('api '+r.status), {status:r.status, code});
+  }
   return r.json();
 }
 
