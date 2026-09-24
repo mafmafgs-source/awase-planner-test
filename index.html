@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="併せPlanner">
-<script>try{var t=localStorage.getItem('awaseTheme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<script>try{var t=localStorage.getItem('awaseThemeNow');if(t==null)t=localStorage.getItem('awaseTheme');if(t&&t!=='mono')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <style>
 :root{
   --ac:#1a1a1a; --acbg:#f2f2f2;
@@ -418,6 +418,12 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .grpbox .sech{margin-top:16px;}
 .doc .grpbox input[type=text]{background:#fff; border-bottom-color:#d4d4d8; border-radius:6px 6px 0 0; padding:7px 6px;}
 .doc .grpbox input.filled{background:var(--fill-bg); border-bottom-color:var(--fill-bd);}
+.evcolor{display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin:-6px 0 0;}
+.evcolor .lbl{font-size:11.5px; font-weight:700; color:var(--sub); margin-right:4px;}
+.evcolor button{background:none; border:none; padding:2px; cursor:pointer; line-height:0;}
+.evcolor .dot{display:inline-block; width:24px; height:24px; border-radius:50%; border:2px solid transparent; box-shadow:0 0 0 1px rgba(0,0,0,.08);}
+.evcolor button.on .dot{border-color:var(--card); box-shadow:0 0 0 2px var(--ink);}
+.awimg{display:block; width:100%; max-height:260px; object-fit:cover; border-radius:var(--r); margin:0 0 12px; background:var(--acbg);}
 .mehead{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
 .modal .box .mehead h3{flex:1; margin:0;}
 .thpick{display:grid; grid-template-columns:repeat(4,1fr); gap:10px 6px; background:var(--acbg); border-radius:10px; padding:12px 8px; margin:0 0 12px;}
@@ -567,6 +573,7 @@ function blankEvent(){
     id: uid(), updatedAt: Date.now(),
     title:'', intro:'', content:'',
     host:'', hostTw:'',
+    color:'',                        // この併せの色（主催が決める・参加者にも同じ色で見える）。''＝未設定→見る人のマイページの色、'mono'＝モノクロ
     subHosts:[],                     // 副主催（主催と同じ権限。募集シートで先に決めておく枠）
     dateType:'tbd', date:'', dateText:'', endTime:'',
     place:'', studio:'', placeUrl:'', station:'', costume:'',
@@ -650,7 +657,8 @@ function showList(){
       <h3>保存された併せ</h3>
       ${saved.length? saved.map(e=>{
         const bg = e.bgUrl || e.bg;
-        return `<div class="evcard ${bg?'hasbg':''}" onclick="closeModal();openEvent('${e.id}')" style="${bg?`background-image:url('${bg}');`:''}${e.id===cur?'border-color:var(--tx)':''}">
+        const col = e.color ? themeOf(e.color).c[0] : '';
+        return `<div class="evcard ${bg?'hasbg':''}" onclick="closeModal();openEvent('${e.id}')" style="${bg?`background-image:url('${bg}');`:''}${e.id===cur?'border-color:var(--tx);':''}${col?`border-left:6px solid ${col};`:''}">
           <div class="inner">
             <div class="ttl">${esc(e.title)||'（無題の併せ）'}${e.id===cur?'<span style="font-size:11px;color:var(--sub);font-weight:400">　表示中</span>':''}</div>
             <div class="meta">${esc(e.content)||''}${e.content?' ｜ ':''}${esc(dateDisp(e))}</div>
@@ -697,6 +705,7 @@ function openStart(){
     const e = blankEvent();
     own.mark(e.id);
     fillHost(e);
+    e.color = curTheme() || 'mono';
     state.events.push(e);
     store.set(state);
   }
@@ -761,6 +770,7 @@ function renderTabs(){
   updateCdBadge();
 }
 function renderTab(){
+  applyTheme();
   const e = ev();
   if(!e){ openStart(); return; }
   document.getElementById('hTitle').textContent = e.title || '新しい併せ募集';
@@ -853,7 +863,9 @@ function renderAwase(){
     }
   }
 
+  const bgImg = e.bgUrl || e.bg;
   v.innerHTML = `
+  ${bgImg? `<img class="awimg" src="${esc(bgImg)}" alt="">` : ''}
   <div class="doc">
     <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
     ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
@@ -888,6 +900,7 @@ function newEvent(){
   const e = blankEvent();
   own.mark(e.id);
   fillHost(e);
+  e.color = curTheme() || 'mono';
   state.events.push(e);
   save(false);
   openEvent(e.id,'info');
@@ -1034,6 +1047,7 @@ function renderInfo(){
   const S = k => secOn(e,k);
   v.innerHTML = `
   <div class="doc">
+    ${canHost(e)? evColorHTML(e) : ''}
     <input class="bigtitle" value="${esc(e.title)}" placeholder="併せタイトル" oninput="uf('title',this.value)">
     <textarea class="intro" rows="2" placeholder="ひとこと紹介（例：交流メインのゆるい併せです）" oninput="uf('intro',this.value)">${esc(e.intro)}</textarea>
     ${presetHTML(e,'intro')}
@@ -3049,6 +3063,31 @@ const THEMES = [
   {k:'yellow', name:'プレミアムイエロー', c:['#FBBF24','#FEF9C3','#1F2937']}
 ];
 function curTheme(){ return lsGet('awaseTheme') || ''; }
+function themeOf(k){ return THEMES.find(x=>x.k===(k==='mono'?'':k)) || THEMES[0]; }
+function applyTheme(){
+  const e = (typeof cur!=='undefined' && cur) ? ev() : null;
+  const k = (e && e.color) || curTheme();
+  if(k && k!=='mono') document.documentElement.setAttribute('data-theme', k); else document.documentElement.removeAttribute('data-theme');
+  lsSet('awaseThemeNow', k || '');
+}
+/* 募集シートのいちばん上: この併せの色（主催・副主催だけ） */
+function evColorHTML(e){
+  const k = e.color || '';
+  return `<div class="evcolor"><span class="lbl">この併せの色</span>${THEMES.map(x=>{
+    const key = x.k || 'mono';
+    const on = k===key;
+    return `<button class="${on?'on':''}" title="${x.name}" aria-label="${x.name}" onclick="setEventColor('${key}')"><span class="dot" style="background:conic-gradient(${x.c[0]} 0 50%, ${x.c[1]} 50% 75%, ${x.c[2]} 75%)"></span></button>`;
+  }).join('')}</div>
+  <div class="note" style="margin:2px 0 12px">招待したメンバーにも同じ色で表示されます。併せごとに色を変えると見分けやすくなります。</div>`;
+}
+function setEventColor(k){
+  const e = ev();
+  if(!e || !canHost(e)) return;
+  e.color = k;
+  save();
+  applyTheme();
+  renderTab();
+}
 function themePickHTML(){
   const t = curTheme();
   return THEMES.map(x=>`<button class="${x.k===t?'on':''}" onclick="setTheme('${x.k}')" aria-label="${x.name}">
@@ -3060,9 +3099,11 @@ function toggleThemePick(){
 }
 function setTheme(k){
   lsSet('awaseTheme', k || null);
-  if(k) document.documentElement.setAttribute('data-theme', k); else document.documentElement.removeAttribute('data-theme');
+  applyTheme();
   const el = document.getElementById('thPick');
   if(el) el.innerHTML = themePickHTML();
+  const e = cur ? ev() : null;
+  if(e && e.color) toast('新しく作る併せの色にしました（今の併せの色は募集シートのいちばん上で変えられます）');
 }
 
 /* ---- マイページ（名前・Xの@ID） ----
@@ -3072,7 +3113,7 @@ function showMyPage(){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <div class="mehead"><h3>マイページ</h3><button class="btn sec sm" onclick="toggleThemePick()">🎨 カラー変更</button></div>
-      <div id="thPick" class="thpick" style="display:none">${themePickHTML()}</div>
+      <div id="thPick" style="display:none"><div class="note" style="margin:0 0 6px">新しく作る併せの色になります（色を決めていない併せもこの色で表示）。併せごとの色は、募集シートのいちばん上で変えられます。</div><div class="thpick">${themePickHTML()}</div></div>
       <div class="note" style="margin:0 0 8px">Xのアカウント名と@IDを登録しておくと、新しい併せを作ったときに【主催】欄へ自動で入ります。名前はコメントや申請の表示名にも使われます。</div>
       <div style="font-size:12px;color:var(--sub);margin:4px 0 2px">名前（Xのアカウント名・コスネーム）</div>
       <input type="text" id="meName" value="${esc(myName())}" placeholder="例：もうふ">
