@@ -157,6 +157,12 @@ textarea{resize:vertical;}
 }
 .st3 button.s1{border-color:var(--sub); color:var(--tx);}
 .st3 button.s2{background:var(--pri); border-color:var(--pri); color:var(--pri-tx);}
+/* 撮影データの受け渡し: スマホでも読めるよう 3 段に分け、文字と高さを控えめに */
+.dlk .row{margin-top:6px; gap:6px;}
+.dlk input[type=text]{font-size:13px; padding:7px 9px; margin-top:6px; border-radius:6px;}
+.dlk .row input[type=text]{margin-top:0;}
+.dlk .btn.sm{padding:6px 10px; font-size:12px;}
+.dlk .rowbtn{padding:6px 8px;}
 .mcard{border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px; background:var(--card);}
 .mcard.mine{border:2.5px solid var(--tx); box-shadow:var(--sh);}
 .mcard .nm{font-weight:700; font-size:14.5px;}
@@ -1823,16 +1829,18 @@ function dataLinksHTML(e){
           : (owner && !holdsSlot(e))? `<button class="claimbtn" onclick="claimCam(${ci})">自分の枠にする</button>`
           : `<span class="mytag other">参加待ち</span>`) : ''}
       </div>
-      ${d.links.map((l,j)=>`<div style="${j>0?'border-top:1px dashed var(--line);margin-top:10px;padding-top:10px':''}">
-        <div class="row" style="margin-top:6px">
-          <input type="text" style="flex:2;min-width:0" value="${esc(l.url)}" placeholder="共有URL" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save();refreshDataCount()"`:'readonly'}>
-          <input type="text" style="min-width:0" value="${esc(l.pw)}" placeholder="パスワード" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()"`:'readonly'}>
-          <input type="text" style="min-width:0" value="${esc(l.due)}" placeholder="DL期限" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()"`:'readonly'}>
+      ${d.links.map((l,j)=>`<div class="dlk" style="${j>0?'border-top:1px dashed var(--line);margin-top:8px;padding-top:8px':''}">
+        <div class="row">
+          <input type="text" style="min-width:0" value="${esc(l.url)}" placeholder="共有URL（ギガファイル便・Googleフォトなど）" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].url=this.value;save();refreshDataCount()"`:'readonly'}>
           <button class="btn sec sm fix" onclick="openDataLink(${i},${j})">開く</button>
           <button class="rowbtn" onclick="copyDataLink(${i},${j})">コピー</button>
         </div>
-        <input type="text" value="${esc(l.memo)}" placeholder="メモ（例：後半分は追って送ります）" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].memo=this.value;save()"`:'readonly'} style="margin-top:6px">
-        ${canEdit && d.links.length>1?`<div style="text-align:right;margin-top:4px"><button class="rowbtn" onclick="delDataUrl(${i},${j})">この枠を削除</button></div>`:''}
+        <div class="row">
+          <input type="text" style="min-width:0" value="${esc(l.pw)}" placeholder="パスワード" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].pw=this.value;save()"`:'readonly'}>
+          <input type="text" style="min-width:0" value="${esc(l.due)}" placeholder="DL期限（例：10/15まで）" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].due=this.value;save()"`:'readonly'}>
+        </div>
+        <input type="text" value="${esc(l.memo)}" placeholder="メモ（例：後半分は追って送ります）" ${canEdit?`oninput="ev().dataLinks[${i}].links[${j}].memo=this.value;save()"`:'readonly'}>
+        ${canEdit && d.links.length>1?`<div style="text-align:right;margin-top:2px"><button class="rowbtn" onclick="delDataUrl(${i},${j})">この枠を削除</button></div>`:''}
       </div>`).join('')}
       ${canEdit?`<div class="row" style="margin-top:10px">
         <button class="btn ghost sm" onclick="addDataUrl(${i})">＋ URL枠を追加（小分け用）</button>
