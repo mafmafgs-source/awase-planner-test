@@ -499,9 +499,8 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 /* ============ 併せPlanner core ============ */
 'use strict';
 
-/* WEB版（jyounetsu.site/awase/）は true。build.sh が書き換える。
-   WEB版の役割: (A) 自分で作る併せ＝募集シートだけ（スクショ用・サーバーに上げない）
-               (B) 招待リンクから参加した併せ＝アプリと同じ参加者画面（進捗・構図・忘れ物まで） */
+/* 9/24 に WEB版とフル版を統合: 本番（jyounetsu.site/awase/）もフル版と同じ中身（LITE=false）。
+   LITE=true は「自分で作る併せ＝募集シートだけ・サーバーに上げない」軽い版。仕組みは残してあるが、いまは使っていない */
 const LITE = false;
 /* アプリのストアURL（公開されたら入れる）。WEB版で参加した人に「アプリもあります」と控えめに案内する */
 const APP_LINKS = { ios: null, android: null };
