@@ -1644,20 +1644,25 @@ function renderDetailCanvases(e){
   const maxContent = Math.max(...pages.map(p=>p.reduce((a,r)=>a+r.lh,0)));
   const H = Math.max(900, maxContent + M + 40 + M + (pages.length>1?50:0));
 
+  /* 併せの色（モノクロならこれまでどおり）: 外枠・タイトルの下線＝メインの色、見出し＝濃いめの色。本文は変えない */
+  const th = themeOf(e.color || curTheme() || 'mono');
+  const colored = !!th.k;
+  const HEAD = colored ? th.ink : INK;
+  const LINE = colored ? th.c[0] : INK;
   pages.forEach((prows,pi)=>{
     const cv = document.createElement('canvas');
     cv.width=W; cv.height=H;
     const ctx = cv.getContext('2d');
     ctx.fillStyle='#ffffff';
     ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle=LINEC; ctx.lineWidth=2;
+    ctx.strokeStyle= colored ? th.c[0] : LINEC; ctx.lineWidth= colored ? 4 : 2;
     ctx.strokeRect(28,28,W-56,H-56);
     let y = M+40;
     prows.forEach(r=>{
       if(r.t==='sp'){ y+=r.lh; return; }
       if(r.t==='kv'){
         ctx.font = `700 36px ${FNT}`;
-        ctx.fillStyle = INK;
+        ctx.fillStyle = HEAD;
         ctx.fillText(r.label, M, y + 36*0.55);
         ctx.font = `500 35px ${FNT}`;
         ctx.fillStyle = '#3a3a3a';
@@ -1666,10 +1671,10 @@ function renderDetailCanvases(e){
         return;
       }
       ctx.font = `${r.wt} ${r.size}px ${FNT}`;
-      ctx.fillStyle = (r.t==='h1'||r.t==='h') ? INK : (r.t==='star'? SUBINK : '#3a3a3a');
+      ctx.fillStyle = r.t==='h1' ? INK : r.t==='h' ? HEAD : (r.t==='star'? SUBINK : '#3a3a3a');
       ctx.fillText(r.text, M, y + r.size*0.55);
       if(r.t==='h1' && !r.cont){
-        ctx.strokeStyle=INK; ctx.lineWidth=2.5;
+        ctx.strokeStyle=LINE; ctx.lineWidth= colored ? 4 : 2.5;
         ctx.beginPath(); ctx.moveTo(M, y+r.size*0.95); ctx.lineTo(M+ctx.measureText(r.text).width, y+r.size*0.95); ctx.stroke();
       }
       y += r.lh;
@@ -3075,14 +3080,14 @@ function agreeTerms(){
 /* ---- カラー（マイページで選ぶ・この端末だけ） ----
    色の中身は CSS の [data-theme=…]。モノクロ（標準）は属性なし */
 const THEMES = [
-  {k:'',       name:'モノクロ（標準）',   c:['#1a1a1a','#f2f2f2','#767676']},
-  {k:'blue',   name:'シンプルブルー',     c:['#2563EB','#E0E7FF','#1E293B']},
-  {k:'green',  name:'ナチュラルグリーン', c:['#10B981','#ECFDF5','#374151']},
-  {k:'brown',  name:'ベージュブラウン',   c:['#D97706','#FFF7ED','#3C2F2A']},
-  {k:'pink',   name:'ローズピンク',       c:['#F43F5E','#FDE2E8','#3F1D2B']},
-  {k:'purple', name:'ミステリアスパープル', c:['#8B5CF6','#EDE9FE','#1F1B3B']},
-  {k:'teal',   name:'クールティール',     c:['#0EA5A3','#E0F2F1','#1E293B']},
-  {k:'yellow', name:'プレミアムイエロー', c:['#FBBF24','#FEF9C3','#1F2937']}
+  {k:'',       name:'モノクロ（標準）',   c:['#1a1a1a','#f2f2f2','#767676'], ink:'#1a1a1a'},
+  {k:'blue',   name:'シンプルブルー',     c:['#2563EB','#E0E7FF','#1E293B'], ink:'#2563EB'},
+  {k:'green',  name:'ナチュラルグリーン', c:['#10B981','#ECFDF5','#374151'], ink:'#059669'},
+  {k:'brown',  name:'ベージュブラウン',   c:['#D97706','#FFF7ED','#3C2F2A'], ink:'#B45309'},
+  {k:'pink',   name:'ローズピンク',       c:['#F43F5E','#FDE2E8','#3F1D2B'], ink:'#E11D48'},
+  {k:'purple', name:'ミステリアスパープル', c:['#8B5CF6','#EDE9FE','#1F1B3B'], ink:'#7C3AED'},
+  {k:'teal',   name:'クールティール',     c:['#0EA5A3','#E0F2F1','#1E293B'], ink:'#0D9488'},
+  {k:'yellow', name:'プレミアムイエロー', c:['#FBBF24','#FEF9C3','#1F2937'], ink:'#CA8A04'}
 ];
 function curTheme(){ return lsGet('awaseTheme') || ''; }
 function themeOf(k){ return THEMES.find(x=>x.k===(k==='mono'?'':k)) || THEMES[0]; }
