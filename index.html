@@ -2106,7 +2106,6 @@ function renderMyList(){
   const done = items.filter(x=>x.done).length;
   const pct = items.length? Math.round(done/items.length*100) : 0;
   const listCard = `<div class="card">
-    ${myEdit? `<h3>いまのリスト <span class="cnt">タップで削除</span></h3>` : ''}
     <div id="myProg">${myProgHTML(items)}</div>
     <div class="mychips" id="myList">
       ${items.map((it,i)=>`<button class="mychip ${chipLen(it.text)} ${it.done&&!myEdit?'on':''} ${myEdit?'del':''}" data-id="${it.id}" onclick="${myEdit?`delMyItem('${it.id}')`:`toggleMyItem('${it.id}')`}"><span class="t">${esc(it.text)}</span></button>`).join('')}
@@ -2130,11 +2129,11 @@ function renderMyList(){
       <input type="text" id="myItemInput" maxlength="30" placeholder="例：カラコン" onkeydown="if(event.key==='Enter')addMyItem()">
       <button class="btn sec sm fix" onclick="addMyItem()">追加</button>
     </div>
-    <div class="secttl" style="margin-top:16px">定番の持ち物（タップで入れる／はずす）</div>
-    <div class="mychips">
-      ${MY_PRESETS.map(t=>{
+    <div class="secttl" style="margin-top:16px">持ち物リスト（タップで入れる／はずす）</div>
+    <div class="mychips" id="myPick">
+      ${MY_PRESETS.concat(items.map(x=>x.text).filter(t=>!MY_PRESETS.includes(t))).map(t=>{
         const has = items.some(x=>x.text===t);
-        return `<button class="mychip ${chipLen(t)} ${has?'on':''}" data-preset="${t}" onclick="addMyPreset('${t}')"><span class="t">${t}</span></button>`;
+        return `<button class="mychip ${chipLen(t)} ${has?'on':''}" data-preset="${esc(t)}" onclick="addMyPreset(this.dataset.preset)"><span class="t">${esc(t)}</span></button>`;
       }).join('')}
     </div>
     <div class="row" style="margin-top:10px">
@@ -2142,8 +2141,7 @@ function renderMyList(){
       <button class="btn ghost sm" onclick="removeAllPresets()">定番を全部はずす</button>
     </div>
     <button class="btn ghost wide" onclick="clearMyItems()" style="margin-top:14px">リストを空にする</button>
-  </div>
-  ${listCard}`:''}
+  </div>`:''}
 
   <div id="affBox">${affHTML()}</div>`;
 }
@@ -2168,14 +2166,16 @@ function addMyItem(){
   if(!t) return;
   const items = myItems();
   if(items.length>=100){ toast('登録は100個までです'); return; }
+  if(items.some(x=>x.text===t)){ toast('すでに入っています'); el.value=''; return; }
   const it = {id:uid(), text:t, done:false};
   items.push(it);
   setMyItems(items);
-  const list = document.getElementById('myList');
-  if(list){   // 画面を描き直さず、その場で足す（入力欄のフォーカスも保つ）
-    list.insertAdjacentHTML('beforeend', `<button class="mychip ${chipLen(it.text)} del" data-id="${it.id}" onclick="delMyItem('${it.id}')"><span class="t">${esc(it.text)}</span></button>`);
+  const pick = document.getElementById('myPick');
+  if(pick){   // 画面を描き直さず、その場で足す（入力欄のフォーカスも保つ）
+    const ex = [...pick.querySelectorAll('.mychip')].find(b=>b.dataset.preset===it.text);
+    if(ex) ex.classList.add('on');
+    else pick.insertAdjacentHTML('beforeend', `<button class="mychip ${chipLen(it.text)} on" data-preset="${esc(it.text)}" onclick="addMyPreset(this.dataset.preset)"><span class="t">${esc(it.text)}</span></button>`);
     el.value = ''; el.focus();
-    document.querySelectorAll('.mychip[data-preset]').forEach(b=>{ b.classList.toggle('on', items.some(x=>x.text===b.dataset.preset)); });
     return;
   }
   renderTab();
@@ -2198,16 +2198,10 @@ function addMyPreset(t){
   if(i>=0) removed = items.splice(i,1)[0];
   else items.push({id:uid(), text:t, done:false});
   setMyItems(items);
-  const pb = document.querySelector(`.mychip[data-preset="${CSS.escape(t)}"]`);
-  const list = document.getElementById('myList');
-  if(!pb || !list){ renderTab(); return; }
-  pb.classList.toggle('on', i<0);
-  if(removed){ const c = list.querySelector(`.mychip[data-id="${removed.id}"]`); if(c) c.remove(); }
-  else{
-    const it = items[items.length-1];
-    list.insertAdjacentHTML('beforeend', `<button class="mychip ${chipLen(it.text)} del" data-id="${it.id}" onclick="delMyItem('${it.id}')"><span class="t">${esc(it.text)}</span></button>`);
-  }
-  myProgRefresh(items);
+  const pb = [...document.querySelectorAll('#myPick .mychip')].find(b=>b.dataset.preset===t);
+  if(!pb){ renderTab(); return; }
+  if(removed && !MY_PRESETS.includes(t)) pb.remove();   // 自分で足したものは、はずしたら一覧からも消える
+  else pb.classList.toggle('on', i<0);
 }
 function toggleMyItem(id){
   const items = myItems();
