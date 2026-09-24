@@ -1914,6 +1914,8 @@ function copyRemind(i){
 const RANKING_URL = 'https://mafmafgs-source.github.io/sashiire-ranking/ranking.json';
 let rankingData = null;
 let rankingTried = false;
+/* 差し入れの部分（ランキング・みんなの検索語・禁止語）が届いたら、その部分だけ差し替える（忘れ物リストを触っている最中に画面が動かないように） */
+function affRefresh(){ const box = document.getElementById('affBox'); if(box) box.innerHTML = affHTML(); else renderTab(); }
 function loadRanking(){
   if(rankingTried) return;
   rankingTried = true;
@@ -1928,7 +1930,7 @@ function loadRanking(){
       if(!d || !d.categories) return;
       rankingData = d;
       try{ localStorage.setItem('awaseRankCache', JSON.stringify({day:today, data:d})); }catch(e){}
-      if(curTab==='items') renderTab();
+      if(curTab==='items') affRefresh();
     })
     .catch(()=>{});
 }
@@ -1967,7 +1969,7 @@ function ngLoad(){
         const n = a=>(a||[]).map(ngNorm).filter(Boolean);
         if(!d || !d.words || !d.words.length) throw new Error('ng empty');
         ngData = {words:n(d.words), exact:n(d.exact), allow:n(d.allow)};
-        if(curTab==='items') renderTab();
+        if(curTab==='items') affRefresh();
         return ngData;
       })
       .catch(err=>{ ngP = null; throw err; });
@@ -1994,7 +1996,7 @@ function loadSqRank(){
   sqRankTried = true;
   fetch(SYNC_API + '?sr=1', {cache:'no-store'})
     .then(r=>r.ok? r.json() : null)
-    .then(d=>{ if(d && Array.isArray(d.items)){ sqRank = d.items; if(curTab==='items') renderTab(); } })
+    .then(d=>{ if(d && Array.isArray(d.items)){ sqRank = d.items; if(curTab==='items') affRefresh(); } })
     .catch(()=>{});
 }
 async function sqSearch(term, record){
@@ -2103,20 +2105,24 @@ function renderMyList(){
   const items = myItems();
   const done = items.filter(x=>x.done).length;
   const pct = items.length? Math.round(done/items.length*100) : 0;
-  v.innerHTML = `
-  <div class="card">
-    <h3>じぶんの忘れ物チェック <span class="cnt">自分の端末だけのメモ</span></h3>
-    <div class="filterrow">
-      <button class="${!myEdit?'on':''}" onclick="myEdit=false;renderTab()">チェックモード</button>
-      <button class="${myEdit?'on':''}" onclick="myEdit=true;renderTab()">編集モード</button>
-    </div>
+  const listCard = `<div class="card">
+    ${myEdit? `<h3>いまのリスト <span class="cnt">タップで削除</span></h3>` : ''}
     <div id="myProg">${myProgHTML(items)}</div>
-    <div class="mychips">
+    <div class="mychips" id="myList">
       ${items.map((it,i)=>`<button class="mychip ${chipLen(it.text)} ${it.done&&!myEdit?'on':''} ${myEdit?'del':''}" data-id="${it.id}" onclick="${myEdit?`delMyItem('${it.id}')`:`toggleMyItem('${it.id}')`}"><span class="t">${esc(it.text)}</span></button>`).join('')}
     </div>
     ${!items.length?`<div class="note" style="margin:4px 0 8px">編集モードで持ち物をタイル登録して、出発前にタップでチェック。この一覧は自分の端末にだけ保存され、他の人には見えません。どの併せを開いても同じリストが使えます。</div>`:''}
     ${!myEdit && items.length? `<button class="btn ghost wide" onclick="resetMyItems()" style="margin-top:12px">チェックを全部はずす（次の併せ用にリセット）</button>`:''}
+  </div>`;
+  v.innerHTML = `
+  <div class="card" style="padding-bottom:8px">
+    <h3>じぶんの忘れ物チェック <span class="cnt">自分の端末だけのメモ</span></h3>
+    <div class="filterrow" style="margin-bottom:0">
+      <button class="${!myEdit?'on':''}" onclick="myEdit=false;renderTab()">チェックモード</button>
+      <button class="${myEdit?'on':''}" onclick="myEdit=true;renderTab()">編集モード</button>
+    </div>
   </div>
+  ${myEdit? '' : listCard}
 
   ${myEdit? `<div class="card">
     <h3>持ち物を追加</h3>
@@ -2136,9 +2142,10 @@ function renderMyList(){
       <button class="btn ghost sm" onclick="removeAllPresets()">定番を全部はずす</button>
     </div>
     <button class="btn ghost wide" onclick="clearMyItems()" style="margin-top:14px">リストを空にする</button>
-  </div>`:''}
+  </div>
+  ${listCard}`:''}
 
-  ${affHTML()}`;
+  <div id="affBox">${affHTML()}</div>`;
 }
 function addAllPresets(){
   const items = myItems();
@@ -2161,12 +2168,22 @@ function addMyItem(){
   if(!t) return;
   const items = myItems();
   if(items.length>=100){ toast('登録は100個までです'); return; }
-  items.push({id:uid(), text:t, done:false});
-  setMyItems(items); renderTab();
+  const it = {id:uid(), text:t, done:false};
+  items.push(it);
+  setMyItems(items);
+  const list = document.getElementById('myList');
+  if(list){   // 画面を描き直さず、その場で足す（入力欄のフォーカスも保つ）
+    list.insertAdjacentHTML('beforeend', `<button class="mychip ${chipLen(it.text)} del" data-id="${it.id}" onclick="delMyItem('${it.id}')"><span class="t">${esc(it.text)}</span></button>`);
+    el.value = ''; el.focus();
+    document.querySelectorAll('.mychip[data-preset]').forEach(b=>{ b.classList.toggle('on', items.some(x=>x.text===b.dataset.preset)); });
+    return;
+  }
+  renderTab();
   setTimeout(()=>{ const el2=document.getElementById('myItemInput'); if(el2) el2.focus(); }, 50);
 }
 function chipLen(t){ const n = String(t||'').length; return n>20 ? 'vlong' : n>12 ? 'long' : ''; }
 function myProgHTML(items){
+  if(myEdit) return '';
   const done = items.filter(x=>x.done).length;
   const pct = items.length? Math.round(done/items.length*100) : 0;
   return (items.length?`<div class="pbar"><div style="width:${pct}%"></div></div>
@@ -2182,7 +2199,7 @@ function addMyPreset(t){
   else items.push({id:uid(), text:t, done:false});
   setMyItems(items);
   const pb = document.querySelector(`.mychip[data-preset="${CSS.escape(t)}"]`);
-  const list = document.querySelector('#view .mychips');
+  const list = document.getElementById('myList');
   if(!pb || !list){ renderTab(); return; }
   pb.classList.toggle('on', i<0);
   if(removed){ const c = list.querySelector(`.mychip[data-id="${removed.id}"]`); if(c) c.remove(); }
