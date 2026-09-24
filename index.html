@@ -1937,7 +1937,7 @@ function loadRanking(){
     .catch(()=>{});
 }
 /* アフィリエイトの識別子（差し入れランキング sashiire-ranking と同じ）。
-   Amazon は専用トラッキングID、楽天は本家アフィリエイト（検索結果ページへのリンク） */
+   Amazon は専用トラッキングID。楽天は 9/24 にやめた（もしも経由も本家リンクも iPhone の Chrome で開けなかったため）。関数は残してあるが使っていない */
 const AMAZON_TAG = 'sashiire01-22';
 /* 楽天は本家アフィリエイト（すべて https・転送 3 回）。もしも経由は途中に http:// の転送があり iPhone の Chrome で止まるため 9/24 にやめた */
 const RAKUTEN_AFF_ID = '569e8585.c4959bff.569e8586.775f3b01';
@@ -2018,7 +2018,7 @@ async function sqSearch(term, record){
   renderTab();
 }
 function sqLinks(q){
-  return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">Amazon</a>・<a class="sqlink" href="${esc(rakutenSearchUrl(q))}" target="_blank" rel="sponsored noopener">楽天</a>`;
+  return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">Amazon で探す</a>`;
 }
 function affHTML(){
   loadSqRank();
@@ -2043,7 +2043,6 @@ function affHTML(){
     </div>
     <div class="shopbtns">
       <a href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">Amazon</a>
-      ${it.rakuten? `<a href="${esc(it.rakuten)}" target="_blank" rel="sponsored noopener">楽天</a>` : ''}
     </div>
   </div>`;
   return `<div class="card">
@@ -2069,7 +2068,7 @@ function affHTML(){
       : rank.length
       ? `<div class="sqchips">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
       : `<div class="note" style="margin:4px 0 0">ランキングはこれから育っていきます。あなたの検索が最初の一票になります（3人以上が探した商品から並びます）。</div>`}
-    <div class="prnote">PR：Amazon・楽天のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト・楽天アフィリエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
+    <div class="prnote">PR：Amazon のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
   </div>`;
 }
 function addNameToList(name){
