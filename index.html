@@ -418,12 +418,7 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .grpbox .sech{margin-top:16px;}
 .doc .grpbox input[type=text]{background:#fff; border-bottom-color:#d4d4d8; border-radius:6px 6px 0 0; padding:7px 6px;}
 .doc .grpbox input.filled{background:var(--fill-bg); border-bottom-color:var(--fill-bd);}
-.evcolor{display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin:-6px 0 0;}
-.evcolor .lbl{font-size:11.5px; font-weight:700; color:var(--sub); margin-right:4px;}
-.evcolor button{background:none; border:none; padding:2px; cursor:pointer; line-height:0;}
-.evcolor .dot{display:inline-block; width:24px; height:24px; border-radius:50%; border:2px solid transparent; box-shadow:0 0 0 1px rgba(0,0,0,.08);}
-.evcolor button.on .dot{border-color:var(--card); box-shadow:0 0 0 2px var(--ink);}
-.awimg{display:block; width:100%; max-height:260px; object-fit:cover; border-radius:var(--r); margin:0 0 12px; background:var(--acbg);}
+.cdbig .ttl{font-size:15px; font-weight:800; margin-top:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .mehead{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
 .modal .box .mehead h3{flex:1; margin:0;}
 .thpick{display:grid; grid-template-columns:repeat(4,1fr); gap:10px 6px; background:var(--acbg); border-radius:10px; padding:12px 8px; margin:0 0 12px;}
@@ -865,7 +860,14 @@ function renderAwase(){
 
   const bgImg = e.bgUrl || e.bg;
   v.innerHTML = `
-  ${bgImg? `<img class="awimg" src="${esc(bgImg)}" alt="">` : ''}
+  <div class="cdbig ${bgImg?'hasbg':''}" ${bgImg?`style="background-image:url('${bgImg}')"`:''}>
+    <div class="lbl">${isFixed(e)?'撮影日まで':'日程'}</div>
+    ${isFixed(e)
+      ? `<div class="num" data-cd="${e.date}">${cdText(e.date)}</div>`
+      : `<div class="num" style="font-size:26px;padding:6px 0">${esc(dateDisp(e))}</div>`}
+    <div class="sub">${isFixed(e)?esc(dateDisp(e)):''}${e.place?`${isFixed(e)?' ／ ':''}${esc(e.place)}`:''}</div>
+    <div class="ttl">${esc(e.title)||'（併せ名未定）'}</div>
+  </div>
   <div class="doc">
     <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
     ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
@@ -1047,7 +1049,6 @@ function renderInfo(){
   const S = k => secOn(e,k);
   v.innerHTML = `
   <div class="doc">
-    ${canHost(e)? evColorHTML(e) : ''}
     <input class="bigtitle" value="${esc(e.title)}" placeholder="併せタイトル" oninput="uf('title',this.value)">
     <textarea class="intro" rows="2" placeholder="ひとこと紹介（例：交流メインのゆるい併せです）" oninput="uf('intro',this.value)">${esc(e.intro)}</textarea>
     ${presetHTML(e,'intro')}
@@ -2345,8 +2346,21 @@ function nsfwModel(){
 }
 /* サーバーに画像を上げる場面か（WEB版で自分が作った併せは端末の中だけなので対象外） */
 function needsImageCheck(e){ return syncReady() && imgApiReady() && !liteHost(e); }
+let nsfwReleaseTimer = null;
+function nsfwRelease(){
+  clearTimeout(nsfwReleaseTimer);
+  nsfwReleaseTimer = setTimeout(async ()=>{
+    try{
+      const m = nsfwModelP ? await nsfwModelP : null;
+      nsfwModelP = null;
+      if(m && m.model && m.model.dispose) m.model.dispose();
+      if(window.tf && tf.disposeVariables) tf.disposeVariables();
+    }catch(err){ console.warn(err); }
+  }, 15000);
+}
 async function nsfwScore(dataUrl){
   const m = await nsfwModel();
+  nsfwRelease();   // 続けて追加するときは 15 秒以内なら読み込み直さない
   if(!m) return null;
   const img = await new Promise((res,rej)=>{ const i = new Image(); i.onload = ()=>res(i); i.onerror = rej; i.src = dataUrl; });
   const pr = await m.classify(img, 5);
@@ -3070,26 +3084,17 @@ function applyTheme(){
   if(k && k!=='mono') document.documentElement.setAttribute('data-theme', k); else document.documentElement.removeAttribute('data-theme');
   lsSet('awaseThemeNow', k || '');
 }
-/* 募集シートのいちばん上: この併せの色（主催・副主催だけ） */
-function evColorHTML(e){
-  const k = e.color || '';
-  return `<div class="evcolor"><span class="lbl">この併せの色</span>${THEMES.map(x=>{
-    const key = x.k || 'mono';
-    const on = k===key;
-    return `<button class="${on?'on':''}" title="${x.name}" aria-label="${x.name}" onclick="setEventColor('${key}')"><span class="dot" style="background:conic-gradient(${x.c[0]} 0 50%, ${x.c[1]} 50% 75%, ${x.c[2]} 75%)"></span></button>`;
-  }).join('')}</div>
-  <div class="note" style="margin:2px 0 12px">招待したメンバーにも同じ色で表示されます。併せごとに色を変えると見分けやすくなります。</div>`;
-}
+/* マイページで選んだ色を、開いている併せの色にする（主催・副主催だけ・参加者にも同じ色で見える） */
 function setEventColor(k){
   const e = ev();
   if(!e || !canHost(e)) return;
   e.color = k;
   save();
   applyTheme();
-  renderTab();
 }
 function themePickHTML(){
-  const t = curTheme();
+  const e = cur ? ev() : null;
+  const t = (e && canHost(e) && e.color) ? (e.color==='mono' ? '' : e.color) : curTheme();
   return THEMES.map(x=>`<button class="${x.k===t?'on':''}" onclick="setTheme('${x.k}')" aria-label="${x.name}">
     <span class="dot" style="background:conic-gradient(${x.c[0]} 0 50%, ${x.c[1]} 50% 75%, ${x.c[2]} 75%)"></span>${x.name}</button>`).join('');
 }
@@ -3099,11 +3104,11 @@ function toggleThemePick(){
 }
 function setTheme(k){
   lsSet('awaseTheme', k || null);
-  applyTheme();
-  const el = document.getElementById('thPick');
-  if(el) el.innerHTML = themePickHTML();
   const e = cur ? ev() : null;
-  if(e && e.color) toast('新しく作る併せの色にしました（今の併せの色は募集シートのいちばん上で変えられます）');
+  if(e && canHost(e)) setEventColor(k || 'mono');   // 開いている併せの色も変える（参加者にも同じ色で届く）
+  applyTheme();
+  const el = document.querySelector('#thPick .thpick');
+  if(el) el.innerHTML = themePickHTML();
 }
 
 /* ---- マイページ（名前・Xの@ID） ----
@@ -3113,7 +3118,7 @@ function showMyPage(){
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
       <div class="mehead"><h3>マイページ</h3><button class="btn sec sm" onclick="toggleThemePick()">🎨 カラー変更</button></div>
-      <div id="thPick" style="display:none"><div class="note" style="margin:0 0 6px">新しく作る併せの色になります（色を決めていない併せもこの色で表示）。併せごとの色は、募集シートのいちばん上で変えられます。</div><div class="thpick">${themePickHTML()}</div></div>
+      <div id="thPick" style="display:none"><div class="note" style="margin:0 0 6px">${cur && ev() && canHost(ev())? '開いている併せの色になります（招待したメンバーにも同じ色で表示されます）。新しく作る併せもこの色から始まります。' : '新しく作る併せの色になります。招待された併せは、主催が決めた色で表示されます。'}</div><div class="thpick">${themePickHTML()}</div></div>
       <div class="note" style="margin:0 0 8px">Xのアカウント名と@IDを登録しておくと、新しい併せを作ったときに【主催】欄へ自動で入ります。名前はコメントや申請の表示名にも使われます。</div>
       <div style="font-size:12px;color:var(--sub);margin:4px 0 2px">名前（Xのアカウント名・コスネーム）</div>
       <input type="text" id="meName" value="${esc(myName())}" placeholder="例：もうふ">
