@@ -12,13 +12,26 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="併せPlanner">
+<script>try{var t=localStorage.getItem('awaseTheme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 <style>
 :root{
   --ac:#1a1a1a; --acbg:#f2f2f2;
   --bg:#fafafa; --card:#ffffff; --tx:#1a1a1a; --sub:#767676;
   --line:#e3e3e3; --ok:#1a1a1a; --mid:#767676; --no:#d9d9d9;
   --r:8px; --sh:0 1px 3px rgba(0,0,0,.06);
+  /* カラー（マイページで選ぶ）: pri=メイン（ボタン） pri-tx=ボタンの文字 ink=白地の上の線・文字 dk=濃い色（上のバー） lt=淡い色
+     fill-*=入力済みの欄 */
+  --pri:#1a1a1a; --pri-tx:#fff; --ink:#1a1a1a; --dk:#1a1a1a; --lt:#f2f2f2;
+  --fill-bg:#f3f8fd; --fill-bd:#2e6fb0; --fill-tx:#1c4d80;
 }
+[data-theme=blue]  {--pri:#2563EB; --ink:#2563EB; --dk:#1E293B; --lt:#E0E7FF;}
+[data-theme=green] {--pri:#10B981; --ink:#059669; --dk:#374151; --lt:#ECFDF5;}
+[data-theme=brown] {--pri:#D97706; --ink:#B45309; --dk:#3C2F2A; --lt:#FFF7ED;}
+[data-theme=pink]  {--pri:#F43F5E; --ink:#E11D48; --dk:#3F1D2B; --lt:#FDE2E8;}
+[data-theme=purple]{--pri:#8B5CF6; --ink:#7C3AED; --dk:#1F1B3B; --lt:#EDE9FE;}
+[data-theme=teal]  {--pri:#0EA5A3; --ink:#0D9488; --dk:#1E293B; --lt:#E0F2F1;}
+[data-theme=yellow]{--pri:#FBBF24; --pri-tx:#1F2937; --ink:#CA8A04; --dk:#1F2937; --lt:#FEF9C3;}
+[data-theme]{--acbg:var(--lt); --fill-bg:var(--lt); --fill-bd:var(--ink); --fill-tx:var(--dk);}
 *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
 html{height:100%;}
 body{min-height:100%;}
@@ -30,7 +43,7 @@ body{
 }
 #topStick{position:sticky; top:0; z-index:50;}
 .savedbar{
-  background:var(--tx); color:#fff; font-size:12.5px; font-weight:700;
+  background:var(--dk); color:#fff; font-size:12.5px; font-weight:700;
   padding:9px 16px; display:flex; align-items:center; gap:10px;
 }
 .savedbar .open{flex:1; cursor:pointer;}
@@ -52,7 +65,7 @@ header h1{font-size:16px; font-weight:700; flex:1; white-space:nowrap; overflow:
 /* 進捗タブに重ねるカウントダウンバッジ */
 .tabcd{
   position:absolute; top:-10px; left:50%; transform:translateX(-50%) rotate(-4deg);
-  background:var(--tx); color:#fff; border-radius:99px; padding:2px 10px;
+  background:var(--pri); color:var(--pri-tx); border-radius:99px; padding:2px 10px;
   font-size:10.5px; font-weight:800; white-space:nowrap; pointer-events:none;
   box-shadow:var(--sh); letter-spacing:.02em;
 }
@@ -74,7 +87,7 @@ main{padding:16px;}
   display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:12px;
   box-shadow:0 4px 16px rgba(0,0,0,.12); padding:10px 10px 10px 14px; font-size:12.5px; line-height:1.5; max-width:560px; margin:0 auto;}
 .bkhint span{flex:1;}
-.bkhint .go{font:inherit; font-weight:700; border:1px solid var(--tx); background:var(--tx); color:var(--card); border-radius:99px; padding:5px 12px; cursor:pointer; white-space:nowrap;}
+.bkhint .go{font:inherit; font-weight:700; border:1px solid var(--pri); background:var(--pri); color:var(--pri-tx); border-radius:99px; padding:5px 12px; cursor:pointer; white-space:nowrap;}
 .bkhint .x{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px;}
 .appbanner button{background:none; border:none; color:var(--sub); font-size:16px; cursor:pointer; padding:2px 4px; line-height:1;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px; margin-bottom:14px;}
@@ -85,11 +98,11 @@ input[type=text],input[type=number],input[type=datetime-local],input[type=date],
   width:100%; border:1px solid var(--line); border-radius:6px; padding:9px 12px;
   font-size:15px; background:var(--card); color:var(--tx); font-family:inherit;
 }
-input:focus,textarea:focus,select:focus{outline:none; border-color:var(--tx);}
+input:focus,textarea:focus,select:focus{outline:none; border-color:var(--ink);}
 textarea{resize:vertical;}
 .btn{
   display:inline-flex; align-items:center; justify-content:center; gap:6px;
-  background:var(--tx); color:#fff; border:1px solid var(--tx); border-radius:6px;
+  background:var(--pri); color:var(--pri-tx); border:1px solid var(--pri); border-radius:6px;
   padding:11px 18px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
 }
 .btn.sec{background:var(--acbg); color:var(--tx); border-color:var(--acbg);}
@@ -119,7 +132,7 @@ textarea{resize:vertical;}
   font-size:13px; color:var(--sub); font-family:inherit; font-weight:600;
   border-top:2px solid transparent; position:relative;
 }
-.tabs button.on{color:var(--tx); border-top-color:var(--tx); font-weight:700;}
+.tabs button.on{color:var(--ink); border-top-color:var(--ink); font-weight:700;}
 /* home */
 .evcard{
   background:var(--card); border:1px solid var(--line); border-radius:var(--r);
@@ -136,14 +149,14 @@ textarea{resize:vertical;}
 .empty{text-align:center; color:var(--sub); padding:60px 20px 40px; font-size:14px;}
 /* chips / progress */
 .pbar{height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin:6px 0;}
-.pbar>div{height:100%; background:var(--tx); border-radius:3px; transition:width .3s;}
+.pbar>div{height:100%; background:var(--pri); border-radius:3px; transition:width .3s;}
 .st3{display:flex; gap:6px; margin-top:4px;}
 .st3 button{
   flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
   border-radius:6px; padding:8px 2px; font-size:12px; cursor:pointer; font-family:inherit; font-weight:600;
 }
 .st3 button.s1{border-color:var(--sub); color:var(--tx);}
-.st3 button.s2{background:var(--tx); border-color:var(--tx); color:#fff;}
+.st3 button.s2{background:var(--pri); border-color:var(--pri); color:var(--pri-tx);}
 .mcard{border:1px solid var(--line); border-radius:var(--r); padding:12px; margin-bottom:10px; background:var(--card);}
 .mcard.mine{border:2.5px solid var(--tx); box-shadow:var(--sh);}
 .mcard .nm{font-weight:700; font-size:14.5px;}
@@ -172,7 +185,7 @@ textarea{resize:vertical;}
   display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
   overflow:hidden; word-break:break-all;
 }
-.mychip.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+.mychip.on{background:var(--pri); color:var(--pri-tx); border-color:var(--pri);}
 .mychip.on::after{
   content:'✓'; position:absolute; top:2px; right:6px;
   font-size:11px; font-weight:800; color:#fff;
@@ -282,7 +295,7 @@ input[readonly]{color:var(--sub);}
 .shot.sel{outline:3px solid var(--tx); outline-offset:-3px;}
 .shot.sel::after{
   content:'✓'; position:absolute; top:5px; right:5px; width:22px; height:22px;
-  background:var(--tx); color:#fff; border-radius:50%;
+  background:var(--pri); color:var(--pri-tx); border-radius:50%;
   display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;
 }
 .shot .prio{
@@ -318,7 +331,7 @@ input[readonly]{color:var(--sub);}
   flex:1; border:1px solid var(--line); background:var(--card); color:var(--sub);
   border-radius:6px; padding:7px 0; font-size:12.5px; font-weight:700; cursor:pointer; font-family:inherit;
 }
-.filterrow button.on{background:var(--tx); border-color:var(--tx); color:#fff;}
+.filterrow button.on{background:var(--pri); border-color:var(--pri); color:var(--pri-tx);}
 /* modal */
 .modal{
   position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100;
@@ -353,7 +366,7 @@ details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.
 /* document-style form */
 .doc{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:22px 18px 18px;}
 .doc .bigtitle{
-  width:100%; border:none; border-bottom:2px solid var(--tx); border-radius:0;
+  width:100%; border:none; border-bottom:2px solid var(--ink); border-radius:0;
   font-size:22px; font-weight:800; padding:4px 2px 8px; background:none; color:var(--tx);
 }
 .doc .bigtitle::placeholder{color:var(--no); font-weight:700;}
@@ -369,7 +382,7 @@ details summary{cursor:pointer; color:var(--sub); font-weight:600; font-size:12.
   border:1px solid var(--line); background:var(--card); color:var(--sub); cursor:pointer; font-family:inherit;
   flex:0 0 auto; letter-spacing:.05em;
 }
-.tgl.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+.tgl.on{background:var(--pri); color:var(--pri-tx); border-color:var(--pri);}
 /* たたんでおく説明（募集シートの【副主催】など） */
 details.exp{margin:2px 0 8px; font-size:13px;}
 details.exp summary{font-size:12px; color:var(--sub); font-weight:700;}
@@ -381,30 +394,37 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
   padding:8px 12px; border:1px solid var(--line); border-radius:6px; margin:5px 0;
   background:var(--card); color:var(--tx); cursor:pointer; font-family:inherit;
 }
-.pchip.on{background:var(--tx); color:#fff; border-color:var(--tx);}
+.pchip.on{background:var(--pri); color:var(--pri-tx); border-color:var(--pri);}
 .pchip:active{opacity:.7;}
 .pchip.all{text-align:center; font-weight:800; border-style:dashed;}
 .doc input[type=text],.doc input[type=datetime-local],.doc input[type=time],.doc textarea{
   border:none; border-bottom:1px solid var(--line); border-radius:0; padding:7px 2px; background:none;
 }
-.doc input:focus,.doc textarea:focus{border-color:var(--tx);}
+.doc input:focus,.doc textarea:focus{border-color:var(--ink);}
 .doc .row{align-items:flex-end;}
 .starh{
   font-size:13.5px; font-weight:800; color:var(--tx);
   background:var(--acbg); padding:6px 12px; border-radius:6px;
-  border-left:3px solid var(--tx); margin:14px 0 6px;
+  border-left:3px solid var(--ink); margin:14px 0 6px;
 }
 /* 入力済みの欄は色付きで表示 */
 .doc input.filled, .doc textarea.filled{
-  border-bottom-color:#2e6fb0; color:#1c4d80;
-  background:#f3f8fd; border-radius:6px 6px 0 0;
+  border-bottom-color:var(--fill-bd); color:var(--fill-tx);
+  background:var(--fill-bg); border-radius:6px 6px 0 0;
 }
 /* 確定メンバー・カメラマン・アシスタントの枠（長い募集シートの中で見分けやすく）／招待画面の役割ごとの枠 */
 .grpbox{background:#f4f4f5; border:1px solid #e4e4e7; border-radius:12px; padding:2px 14px 14px; margin:26px -6px 0;}
 .grpbox .grplead{font-size:12.5px; color:#555; background:#fff; border:1px solid #ececef; border-radius:8px; padding:8px 10px; margin:12px 0 0; line-height:1.6;}
 .grpbox .sech{margin-top:16px;}
 .doc .grpbox input[type=text]{background:#fff; border-bottom-color:#d4d4d8; border-radius:6px 6px 0 0; padding:7px 6px;}
-.doc .grpbox input.filled{background:#f3f8fd; border-bottom-color:#2e6fb0;}
+.doc .grpbox input.filled{background:var(--fill-bg); border-bottom-color:var(--fill-bd);}
+.mehead{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+.modal .box .mehead h3{flex:1; margin:0;}
+.thpick{display:grid; grid-template-columns:repeat(4,1fr); gap:10px 6px; background:var(--acbg); border-radius:10px; padding:12px 8px; margin:0 0 12px;}
+.thpick button{background:none; border:none; cursor:pointer; font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px; color:var(--tx); line-height:1.3;}
+.thpick .dot{width:40px; height:40px; border-radius:50%; border:2px solid transparent; box-shadow:0 0 0 1px rgba(0,0,0,.08);}
+.thpick button.on .dot{border-color:var(--card); box-shadow:0 0 0 2px var(--ink);}
+.thpick button.on{font-weight:800;}
 .copyline{display:flex; align-items:center; gap:8px; background:var(--acbg); border-radius:8px; padding:6px 6px 6px 10px; margin:10px 0 0;}
 .copyline .v{flex:1; min-width:0; font-size:12px; word-break:break-all; line-height:1.5; color:var(--tx);}
 .copyline .v.code{font-size:14px; font-weight:800; letter-spacing:.04em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal;}
@@ -3016,13 +3036,43 @@ function agreeTerms(){
   if(d) d();
 }
 
+/* ---- カラー（マイページで選ぶ・この端末だけ） ----
+   色の中身は CSS の [data-theme=…]。モノクロ（標準）は属性なし */
+const THEMES = [
+  {k:'',       name:'モノクロ（標準）',   c:['#1a1a1a','#f2f2f2','#767676']},
+  {k:'blue',   name:'シンプルブルー',     c:['#2563EB','#E0E7FF','#1E293B']},
+  {k:'green',  name:'ナチュラルグリーン', c:['#10B981','#ECFDF5','#374151']},
+  {k:'brown',  name:'ベージュブラウン',   c:['#D97706','#FFF7ED','#3C2F2A']},
+  {k:'pink',   name:'ローズピンク',       c:['#F43F5E','#FDE2E8','#3F1D2B']},
+  {k:'purple', name:'ミステリアスパープル', c:['#8B5CF6','#EDE9FE','#1F1B3B']},
+  {k:'teal',   name:'クールティール',     c:['#0EA5A3','#E0F2F1','#1E293B']},
+  {k:'yellow', name:'プレミアムイエロー', c:['#FBBF24','#FEF9C3','#1F2937']}
+];
+function curTheme(){ return lsGet('awaseTheme') || ''; }
+function themePickHTML(){
+  const t = curTheme();
+  return THEMES.map(x=>`<button class="${x.k===t?'on':''}" onclick="setTheme('${x.k}')" aria-label="${x.name}">
+    <span class="dot" style="background:conic-gradient(${x.c[0]} 0 50%, ${x.c[1]} 50% 75%, ${x.c[2]} 75%)"></span>${x.name}</button>`).join('');
+}
+function toggleThemePick(){
+  const el = document.getElementById('thPick');
+  if(el) el.style.display = el.style.display==='none' ? '' : 'none';
+}
+function setTheme(k){
+  lsSet('awaseTheme', k || null);
+  if(k) document.documentElement.setAttribute('data-theme', k); else document.documentElement.removeAttribute('data-theme');
+  const el = document.getElementById('thPick');
+  if(el) el.innerHTML = themePickHTML();
+}
+
 /* ---- マイページ（名前・Xの@ID） ----
    主催として新しい併せを作ると【主催】欄に自動で入る。招待で参加した併せ（名前・@IDは主催が入力済み）には触らない */
 function showMyPage(){
   document.getElementById('modalHost').innerHTML = `
   <div class="modal" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>マイページ</h3>
+      <div class="mehead"><h3>マイページ</h3><button class="btn sec sm" onclick="toggleThemePick()">🎨 カラー変更</button></div>
+      <div id="thPick" class="thpick" style="display:none">${themePickHTML()}</div>
       <div class="note" style="margin:0 0 8px">Xのアカウント名と@IDを登録しておくと、新しい併せを作ったときに【主催】欄へ自動で入ります。名前はコメントや申請の表示名にも使われます。</div>
       <div style="font-size:12px;color:var(--sub);margin:4px 0 2px">名前（Xのアカウント名・コスネーム）</div>
       <input type="text" id="meName" value="${esc(myName())}" placeholder="例：もうふ">
