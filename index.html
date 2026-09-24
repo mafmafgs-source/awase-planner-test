@@ -350,8 +350,15 @@ input[readonly]{color:var(--sub);}
 }
 .modal .box{
   background:var(--card); border-radius:10px; padding:18px; width:100%; max-width:480px;
-  max-height:86vh; overflow-y:auto;
+  max-height:86vh; max-height:calc(100dvh - 40px); overflow-y:auto;
 }
+/* 保存された併せ: 一覧だけがスクロールし、見出しと下のボタン（新規・閉じる）はいつも見える */
+.modal.list{align-items:flex-start; padding-top:54px;}
+.modal.list .box{display:flex; flex-direction:column; max-height:calc(100vh - 74px); max-height:calc(100dvh - 74px); overflow:hidden;}
+.modal.list .lst{flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; margin:0 -6px; padding:0 6px;}
+.modal.list .lst .evcard:last-child{margin-bottom:2px;}
+.modal.list .foot{flex:0 0 auto; padding-top:6px; border-top:1px solid var(--line); margin-top:6px;}
+.modal.list .foot .btn.wide{margin-top:8px;}
 .modal .box h3{font-size:15px; margin-bottom:10px;}
 .modal img.prev{width:100%; border-radius:6px; margin-bottom:10px;}
 .note{font-size:12px; color:var(--sub); margin-top:8px; line-height:1.55;}
@@ -666,9 +673,10 @@ function updateSavedBar(){
 function showList(){
   const saved = state.events.filter(hasContent);
   document.getElementById('modalHost').innerHTML = `
-  <div class="modal" onclick="if(event.target===this)closeModal()" style="align-items:flex-start;padding-top:54px">
+  <div class="modal list" onclick="if(event.target===this)closeModal()">
     <div class="box">
-      <h3>保存された併せ</h3>
+      <h3>保存された併せ${saved.length? `<span class="cnt" style="font-weight:400;color:var(--sub);font-size:12px">　${saved.length}件</span>`:''}</h3>
+      <div class="lst">
       ${saved.length? saved.map(e=>{
         const bg = e.bgUrl || e.bg;
         const col = e.color ? themeOf(e.color).c[0] : '';
@@ -684,6 +692,8 @@ function showList(){
           </div>
         </div>`;
       }).join('') : '<div class="note">まだ保存された併せはありません</div>'}
+      </div>
+      <div class="foot">
       <button class="btn wide" onclick="closeModal();newEvent()">＋ 新しい併せを作成</button>
       <button class="btn ghost wide" onclick="closeModal();joinPrompt()">招待コードで参加する</button>
       <details style="text-align:center"><summary>設定・バックアップ</summary>
@@ -700,6 +710,7 @@ function showList(){
           <div style="margin-top:10px;font-size:12px"><a href="${WEB_BASE}privacy.html" target="_blank" rel="noopener" style="color:var(--sub)">プライバシーポリシー</a></div>
         </div></details>
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
+      </div>
     </div>
   </div>`;
 }
