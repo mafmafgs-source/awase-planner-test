@@ -873,7 +873,7 @@ function renderAwase(){
   const tt = e.timetable.filter(t=>t.time||t.label);
   if(owner){
     out += `<div class="sech">【当日タイムテーブル】</div>
-    <div class="note" style="margin:0 0 6px">当日の流れ。参加者の併せページと進捗タブに表示されます（募集スクショには載りません）</div>
+    <div class="note" style="margin:0 0 6px">当日の流れ。参加者の併せページに表示されます（募集スクショには載りません）</div>
     <div id="ttList">${e.timetable.map((t,i)=>ttRow(t,i)).join('')}</div>
     <button class="btn sec sm" onclick="addTT()">＋ 行を追加</button>`;
   }else if(tt.length){
@@ -881,32 +881,6 @@ function renderAwase(){
       tt.map(t=>`<div style="display:flex;gap:12px;padding:3px 0"><b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join(''));
   }
   if(S('hashtag') && e.hashtag) out += sect('【ハッシュタグ】', esc(e.hashtag));
-
-  /* 参加者一覧（主催・副主催のみ・役割の変更と退出操作つき） */
-  if(owner){
-    const ros = Object.entries(e.roster||{}).filter(([cid])=>cid!==clientId());
-    out += `<div class="sech">【参加者】</div>`;
-    if(!ros.length){
-      out += !syncReady()
-        ? `<div class="note" style="margin:0">共有サーバーの設定後、この併せに参加した端末がここに表示され、副主催にしたり退出してもらったりできます。</div>`
-        : `<div class="note" style="margin:0">まだ参加者はいません（招待リンクから参加するとここに表示されます）。</div>`;
-    }else{
-      out += ros.map(([cid,r])=>{
-        const host = !!r.own;            // 主催の端末（副主催から見ても操作できない）
-        const sub = !!r.sub && !r.ban;
-        return `<div class="rorow">
-          <span class="ronm">${esc(r.name)||'名前未設定'}</span>
-          ${host? `<span class="mytag">主催</span>` : sub? `<span class="mytag">副主催</span>` : ''}
-          ${r.ban? `<span class="mytag other">退出済み</span><button class="claimbtn" onclick="unkickMember('${esc(cid)}')">戻す</button>`
-            : host? ''
-            : `<button class="claimbtn" onclick="setSub('${esc(cid)}',${sub?'false':'true'})">${sub?'副主催を解除':'副主催にする'}</button>
-               <button class="claimbtn" onclick="kickMember('${esc(cid)}')">退出してもらう</button>`}
-        </div>`;
-      }).join('')
-      + `<div class="note" style="margin-top:6px">副主催にすると、募集シートの編集・構図の管理・招待リンク・参加者の退出まで主催と同じ操作ができるようになります（主催に退出してもらうことと、主催の権限を変えることだけはできません）。</div>`
-      + `<div class="note" style="margin-top:4px">退出させると相手の端末からこの併せが消え、同じリンクでは再参加できなくなります。進捗の枠と個別リンクも作り直されます。</div>`;
-    }
-  }
 
   v.innerHTML = `
   <div class="doc">
@@ -1104,7 +1078,7 @@ function renderInfo(){
     <div class="sech">【副主催】<span class="opt">任意・何人でも</span></div>
     ${liteHost(e)? '' : `<details class="exp" ${openPresets.has('subHosts')?'open':''} ontoggle="this.open?openPresets.add('subHosts'):openPresets.delete('subHosts')">
       <summary>副主催とは？</summary>
-      <div class="note">主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから【参加者】で任命することもできます。</div>
+      <div class="note">主催と一緒に併せを回す方です。招待モーダルの「副主催の招待リンク」を送ると、開いた時点で主催と同じ操作（募集シートの編集・構図の管理・参加者の退出）ができるようになります。主催に退出してもらうことだけはできません。あとから招待画面の「参加している端末の管理」で任命することもできます。</div>
     </details>`}
     <div id="subList">${(e.subHosts||[]).map((h,i)=>subRow(h,i)).join('')}</div>
     <button class="btn sec sm" onclick="addSubHost()">＋ 副主催を追加</button>
@@ -1783,10 +1757,6 @@ function renderProg(){
     ${total && pct===100 ? `<div style="text-align:center;font-weight:800;font-size:14px;margin-top:8px">準備完了！あとは当日を楽しむだけ</div>`:''}
   </div>
 
-  ${tt.length?`<div class="card"><h3>当日タイムテーブル</h3>
-    ${tt.map(t=>`<div style="display:flex;gap:12px;padding:5px 0;border-bottom:1px dashed var(--line)">
-      <b style="flex:0 0 60px">${esc(t.time)||'--:--'}</b><span>${esc(t.label)}</span></div>`).join('')}
-  </div>`:''}
 
   <div class="sechd"><span class="t">メンバーごとの準備</span>${
     e.members.length? `<span class="c">できた ${e.members.filter(m=>m.prog&&m.prog.ish===2&&m.prog.wig===2&&m.prog.item===2).length} / ${e.members.length}人</span>`:''}</div>
@@ -3848,6 +3818,27 @@ function invRow(kind, i, x, fn){
   </div>`;
 }
 
+/* 参加している端末の管理（副主催にする・退出してもらう）。招待画面の下に折りたたみで置く（併せタブからは 9/25 に外した） */
+function rosterManageHTML(e){
+  if(!canHost(e) || !syncReady()) return '';
+  const ros = Object.entries(e.roster||{}).filter(([cid])=>cid!==clientId());
+  if(!ros.length) return '';
+  return `<details class="exp" style="margin-top:14px"><summary>参加している端末の管理（副主催・退出）</summary>
+    ${ros.map(([cid,r])=>{
+      const host = !!r.own;
+      const sub = !!r.sub && !r.ban;
+      return `<div class="rorow">
+        <span class="ronm">${esc(r.name)||'名前未設定'}</span>
+        ${host? `<span class="mytag">主催</span>` : sub? `<span class="mytag">副主催</span>` : ''}
+        ${r.ban? `<span class="mytag other">退出済み</span><button class="claimbtn" onclick="unkickMember('${esc(cid)}')">戻す</button>`
+          : host? ''
+          : `<button class="claimbtn" onclick="setSub('${esc(cid)}',${sub?'false':'true'})">${sub?'副主催を解除':'副主催にする'}</button>
+             <button class="claimbtn" onclick="kickMember('${esc(cid)}')">退出してもらう</button>`}
+      </div>`;
+    }).join('')}
+    <div class="note" style="margin-top:6px">副主催にすると、募集シートの編集・構図の管理・招待リンク・参加者の退出まで主催と同じ操作ができます。退出させると相手の端末からこの併せが消え、同じリンクでは再参加できません。</div>
+  </details>`;
+}
 /* ---- 招待（メンバー・カメラマン向け） ---- */
 function inviteURL(e){
   /* どこから招待しても行き先は WEB版（相手はアプリが無くてもブラウザで参加できる） */
@@ -3912,6 +3903,7 @@ function showInvite(){
            : `<div style="background:var(--acbg);border-radius:12px;padding:14px;text-align:center;font-size:22px;font-weight:800;letter-spacing:.05em;color:var(--ac)">${esc(e.sync.room)}</div>`}
       <button class="btn wide" onclick="copyText(${JSON.stringify(shareText).replace(/"/g,'&quot;')})">招待メッセージをコピー</button>
       ${url && canHost(e) && e.members.length? '</div>' : ''}
+      ${rosterManageHTML(e)}
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
