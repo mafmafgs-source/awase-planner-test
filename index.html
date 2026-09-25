@@ -2118,6 +2118,20 @@ const MY_PRESETS = ['衣装一式','ウィッグ','カラコン','靴','小物�
 /* 初めて開いたときの持ち物（チェックモードの使い方がひと目で分かるように）。
    一度でも保存されたら入れ直さない＝編集モードで消した・空にした状態はそのまま残る */
 const MY_DEFAULTS = ['衣装一式','ウィッグ','カラコン','靴','小物・武器','メイク道具','安全ピン','充電器・モバイルバッテリー'];
+/* チェック（できた）は併せごとに持つ。持ち物リスト（何を持っていくか）は端末で共通 */
+function myDoneAll(){ return lsJson('awaseMyDone', {}); }
+function myDone(){ return (cur && myDoneAll()[cur]) || {}; }
+function isDone(id){ return !!myDone()[id]; }
+function setDone(id, on){
+  if(!cur) return;
+  const all = myDoneAll(); const m = all[cur] || {};
+  if(on) m[id] = 1; else delete m[id];
+  if(Object.keys(m).length) all[cur] = m; else delete all[cur];
+  /* もう無い併せのぶんは捨てる */
+  Object.keys(all).forEach(k=>{ if(!state.events.some(e=>e.id===k)) delete all[k]; });
+  try{ localStorage.setItem('awaseMyDone', JSON.stringify(all)); localStorage.setItem('awaseMyDoneAt', String(Date.now())); }catch(e){}
+  bkDirty();
+}
 function myItems(){
   try{
     const raw = localStorage.getItem('awaseMyItems');
@@ -2148,19 +2162,19 @@ function renderMyList(){
   loadRanking();
   const v = document.getElementById('view');
   const items = myItems();
-  const done = items.filter(x=>x.done).length;
+  const done = items.filter(x=>isDone(x.id)).length;
   const pct = items.length? Math.round(done/items.length*100) : 0;
   const listCard = `<div class="card">
     <div id="myProg">${myProgHTML(items)}</div>
     <div class="mychips" id="myList">
-      ${items.map((it,i)=>`<button class="mychip ${chipLen(it.text)} ${it.done&&!myEdit?'on':''} ${myEdit?'del':''}" data-id="${it.id}" onclick="${myEdit?`delMyItem('${it.id}')`:`toggleMyItem('${it.id}')`}"><span class="t">${esc(it.text)}</span></button>`).join('')}
+      ${items.map((it,i)=>`<button class="mychip ${chipLen(it.text)} ${isDone(it.id)&&!myEdit?'on':''} ${myEdit?'del':''}" data-id="${it.id}" onclick="${myEdit?`delMyItem('${it.id}')`:`toggleMyItem('${it.id}')`}"><span class="t">${esc(it.text)}</span></button>`).join('')}
     </div>
-    ${!items.length?`<div class="note" style="margin:4px 0 8px">編集モードで持ち物をタイル登録して、出発前にタップでチェック。この一覧は自分の端末にだけ保存され、他の人には見えません。どの併せを開いても同じリストが使えます。</div>`:''}
-    ${!myEdit && items.length? `<button class="btn ghost wide" onclick="resetMyItems()" style="margin-top:12px">チェックを全部はずす（次の併せ用にリセット）</button>`:''}
+    ${!items.length?`<div class="note" style="margin:4px 0 8px">編集モードで持ち物をタイル登録して、出発前にタップでチェック。持ち物リストは自分の端末で共通、チェックは併せごとに別々です。他の人には見えません。</div>`:''}
+    ${!myEdit && items.length? `<button class="btn ghost wide" onclick="resetMyItems()" style="margin-top:12px">この併せのチェックを全部はずす</button>`:''}
   </div>`;
   v.innerHTML = `
   <div class="card" style="padding-bottom:8px">
-    <h3>じぶんの忘れ物チェック <span class="cnt">自分の端末だけのメモ</span></h3>
+    <h3>じぶんの忘れ物チェック <span class="cnt">チェックは併せごと・自分だけに見える</span></h3>
     <div class="filterrow" style="margin-bottom:0">
       <button class="${!myEdit?'on':''}" onclick="myEdit=false;renderTab()">チェックモード</button>
       <button class="${myEdit?'on':''}" onclick="myEdit=true;renderTab()">編集モード</button>
@@ -2234,7 +2248,7 @@ function addMyItem(){
 function chipLen(t){ const n = String(t||'').length; return n>20 ? 'vlong' : n>12 ? 'long' : ''; }
 function myProgHTML(items){
   if(myEdit) return '';
-  const done = items.filter(x=>x.done).length;
+  const done = items.filter(x=>isDone(x.id)).length;
   const pct = items.length? Math.round(done/items.length*100) : 0;
   return (items.length?`<div class="pbar"><div style="width:${pct}%"></div></div>
     <div style="font-size:12.5px;color:var(--sub);text-align:right;margin-bottom:6px">チェック ${done} / ${items.length}</div>`:'')
@@ -2256,10 +2270,10 @@ function toggleMyItem(id){
   const items = myItems();
   const it = items.find(x=>x.id===id);
   if(!it) return;
-  it.done = !it.done;
-  setMyItems(items);
+  const on = !isDone(id);
+  setDone(id, on);
   const c = document.querySelector(`.mychip[data-id="${id}"]`);
-  if(c) c.classList.toggle('on', it.done); else renderTab();
+  if(c) c.classList.toggle('on', on); else renderTab();
   myProgRefresh(items);
 }
 function delMyItem(id){
@@ -2275,9 +2289,9 @@ function delMyItem(id){
   myProgRefresh(items);
 }
 function resetMyItems(){
-  const items = myItems();
-  items.forEach(x=>x.done=false);
-  setMyItems(items); renderTab();
+  const all = myDoneAll(); if(cur) delete all[cur];
+  try{ localStorage.setItem('awaseMyDone', JSON.stringify(all)); localStorage.setItem('awaseMyDoneAt', String(Date.now())); }catch(e){}
+  bkDirty(); renderTab();
 }
 /* ---- カウントダウン背景画像（主催のみ設定・全形式→1000px JPEGに圧縮） ---- */
 async function setBgImage(files){
@@ -2769,6 +2783,7 @@ function vLocal(){
     deleted: lsJson('awaseDeleted', {}),
     items: {at: +(lsGet('awaseMyItemsAt')||0), list: lsJson('awaseMyItems', null)},
     custom: {at: +(lsGet('awaseMyCustomAt')||0), list: lsJson('awaseMyCustom', null)},
+    checks: {at: +(lsGet('awaseMyDoneAt')||0), map: lsJson('awaseMyDone', null)},
     name: {at: +(lsGet('awaseNameAt')||0), v: myName()},
     tw: {at: +(lsGet('awaseTwAt')||0), v: myTw()},
     hidden: lsJson('awaseHidden', {}),
@@ -2791,6 +2806,7 @@ function vFromV1(d){
     owned: j(k.awaseOwned, {}), deleted: {},
     items: {at: k.awaseMyItems ? 1 : 0, list: j(k.awaseMyItems, null)},
     custom: {at: 0, list: null},
+    checks: {at: 0, map: null},
     name: {at: k.awaseName ? 1 : 0, v: k.awaseName || ''},
     tw: {at: k.awaseTw ? 1 : 0, v: k.awaseTw || ''},
     hidden: j(k.awaseHidden, {}), terms: k.awaseTerms || ''
@@ -2813,6 +2829,7 @@ function vMerge(a, b){
   const pick = (x, y)=> ((x && x.at)||0) >= ((y && y.at)||0) ? x : y;
   const items = (a.items && a.items.at) || !(b.items && b.items.list) ? pick(a.items, b.items) : b.items;
   const custom = (a.custom && a.custom.at) || !(b.custom && b.custom.list) ? pick(a.custom, b.custom) : b.custom;
+  const checks = (a.checks && a.checks.at) || !(b.checks && b.checks.map) ? pick(a.checks, b.checks) : b.checks;
   return {
     v: 2,
     identity: (b.identity && b.identity.me) ? b.identity : a.identity,   // 保管庫の端末IDにそろえる（主催の権限もそのまま使える）
@@ -2821,6 +2838,7 @@ function vMerge(a, b){
     deleted,
     items: items || {at:0, list:null},
     custom: custom || {at:0, list:null},
+    checks: checks || {at:0, map:null},
     name: (a.name && a.name.v && (a.name.at||0) >= ((b.name && b.name.at)||0)) ? a.name : (b.name && b.name.v ? b.name : a.name),
     tw: pick(a.tw, b.tw) || {at:0, v:''},
     hidden: Object.assign({}, b.hidden||{}, a.hidden||{}),
@@ -2853,6 +2871,7 @@ async function vApply(m){
   lsSet('awaseDeleted', JSON.stringify(m.deleted || {}));
   if(m.items && m.items.list){ lsSet('awaseMyItems', JSON.stringify(m.items.list)); lsSet('awaseMyItemsAt', String(m.items.at||0)); }
   if(m.custom && m.custom.list){ lsSet('awaseMyCustom', JSON.stringify(m.custom.list)); lsSet('awaseMyCustomAt', String(m.custom.at||0)); }
+  if(m.checks && m.checks.map){ lsSet('awaseMyDone', JSON.stringify(m.checks.map)); lsSet('awaseMyDoneAt', String(m.checks.at||0)); }
   if(m.name && m.name.v){ lsSet('awaseName', m.name.v); lsSet('awaseNameAt', String(m.name.at||0)); }
   if(m.tw && m.tw.at){ lsSet('awaseTw', m.tw.v||''); lsSet('awaseTwAt', String(m.tw.at)); }
   lsSet('awaseHidden', JSON.stringify(m.hidden || {}));
