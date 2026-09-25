@@ -482,7 +482,9 @@ details.preset summary{font-size:11.5px; color:var(--sub); font-weight:600; curs
 .rotitle{font-size:22px; font-weight:800; border-bottom:2px solid var(--tx); padding:4px 2px 8px;}
 .rointro{font-size:14.5px; padding:8px 2px 0; line-height:1.7;}
 .ro{font-size:14px; line-height:1.75; padding:2px 2px 0;}
-.rop{padding:3px 0; border-bottom:1px dashed var(--line);}
+.rop{padding:3px 0; border-bottom:1px dashed var(--line); display:flex; align-items:center; gap:8px;}
+.rop>span, .rop>.xlink{flex:1; min-width:0; text-align:left;}
+.rop .kick{flex:0 0 auto; margin-left:auto; color:#b91c1c; border-color:#f3c2c2;}
 .rop .tw{color:var(--sub); font-size:12px;}
 /* 併せページの人名タップ → Xのプロフィールを開く */
 .rop .xlink{
@@ -840,12 +842,16 @@ function renderAwase(){
   const line = s => esc(s).replace(/\n/g,'<br>');
   const sect = (label, html) => `<div class="sech">${label}</div><div class="ro">${html}</div>`;
   /* @IDがある人は名前ごとタップでXのプロフィールへ */
+  /* 主催・副主催には、参加済み（端末がつながっている）の人の右端に「退出」（確認つき）。主催本人には出さない */
   const person = p => {
     const h = xHandle(p.tw);
     const nm = `${p.chara?esc(p.chara)+'：':''}${esc(p.name)||'（名前未定）'}`;
+    const cid = p.claim;
+    const joined = !!cid && cid !== clientId() && !((e.roster||{})[cid]||{}).ban;
+    const label = [p.chara, p.name].filter(Boolean).join('：') || 'この参加者';
     return `<div class="rop">${h
       ? `<button class="xlink" onclick="openX('${h}')">${nm} <span class="tw">${esc(at(h))}</span></button>`
-      : nm}</div>`;
+      : `<span>${nm}</span>`}${owner && joined? `<button class="claimbtn kick" onclick="kickPerson('${esc(cid)}', this.dataset.n)" data-n="${esc(label)}">退出</button>` : ''}</div>`;
   };
   let out = '';
   /* 主催・副主催は募集シートと同じく先頭に */
@@ -3606,13 +3612,22 @@ function leaveKicked(e){
   toast('主催の操作により、この併せから退出となりました');
   if(cur===e.id){ cur=null; openStart(); }
 }
-function kickMember(cid){
+/* 併せタブの行の「退出」: 枠の名前で確認してから kickMember */
+function kickPerson(cid, label){ kickMember(cid, label); }
+function kickMember(cid, label){
   const e = ev();
   if(!e || !canHost(e)) return;
   const r = (e.roster||{})[cid];
   /* 副主催は主催に手出しできない（主催だけが上位） */
   if(r && r.own && !isOwner(e)){ toast('主催に退出してもらうことはできません'); return; }
-  if(!confirm(`${(r && r.name)||'この参加者'} さんに退出してもらいますか？\n相手の端末からこの併せが消え、同じリンクでは再参加できません。進捗の枠も解放されます。`)) return;
+  const who = label || (r && r.name) || 'この参加者';
+  if(!confirm(`「${who}」さんに退出してもらいますか？
+
+・相手の端末からこの併せが消えます
+・同じ招待リンクでは再参加できません（招待し直すときは新しいリンクをコピー）
+・進捗の枠は空きに戻ります
+
+この操作は取り消せません。`)) return;
   let metaChanged = false;
   e.members.concat(e.cameras).forEach(m=>{
     if(m.claim===cid || (m.claims||[]).includes(cid)){
