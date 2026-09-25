@@ -3557,7 +3557,7 @@ function onRemote(id, branch, v){
   if(branch==='roster'){
     const map = v || {};
     const me = map[clientId()];
-    if(me && me.ban && !isOwner(local)){ leaveKicked(local); return; }
+    if(me && me.ban && !isOwner(local) && !(local.sync && joinClaimMap()[local.sync.room])){ leaveKicked(local); return; }
     if(JSON.stringify(map) !== JSON.stringify(local.roster||{})){ local.roster = map; changed = true; }
   }else if(branch==='meta'){
     changed = applyMeta(local, v);
@@ -3691,7 +3691,8 @@ function setSub(cid, on){
 /* イベントを開いた/起動した時に裏で自動接続（ユーザー操作不要） */
 async function connectEvent(e){
   if(!e || !syncReady() || conns[e.id]) return;
-  if(e.sync && e.sync.room && kickedRooms.has(e.sync.room) && !isOwner(e)){ leaveKicked(e); return; }
+  /* 退出させられた部屋には戻らない。ただし新しい個別リンク（枠キー）で入り直すときは、サーバーに枠を取ってもらってから判断する */
+  if(e.sync && e.sync.room && kickedRooms.has(e.sync.room) && !isOwner(e) && !joinClaimMap()[e.sync.room]){ leaveKicked(e); return; }
   if(liteHost(e)) return; // WEB版で作った併せ＝「作成だけ」。サーバーには上げない
   if(!e.sync || !e.sync.room){ e.sync = {room: roomId()}; store.set(state); }
   const base = roomRef(e.sync.room, ()=>isOwner(state.events.find(x=>x.id===e.id)));
@@ -3702,7 +3703,7 @@ async function connectEvent(e){
     if(!local){ delete conns[e.id]; return; }
     /* 退出済み端末は接続せず、ローカルからも削除する */
     const rme = v && v.roster && v.roster[clientId()];
-    if(rme && rme.ban && !isOwner(local)){ leaveKicked(local); return; }
+    if(rme && rme.ban && !isOwner(local) && !joinClaimMap()[e.sync.room]){ leaveKicked(local); return; }
     const remoteAt = (v && v.meta && v.meta.updatedAt) || 0;
     if(!v){
       if(hasContent(local) && isOwner(local)) pushAll(local);
@@ -3751,6 +3752,7 @@ function tryJoinClaim(e){
   apiPost({op:'claim', r:room, key, name: myName()})
     .then(res=>{
       setJoinClaim(room, null);
+      if(kickedRooms.has(room)){ kickedRooms.delete(room); lsSet('awaseKicked', JSON.stringify([...kickedRooms])); }   // 新しいリンクで入り直せた
       if(res.name && !myName()) setMyName(res.name);
       const R = conns[e.id];
       if(R){ R.v = -1; R.fetch().catch(()=>{}); }   // 取った枠・副主催の権限を受け取り直す
@@ -3761,6 +3763,8 @@ function tryJoinClaim(e){
       if(st===404){ setJoinClaim(room, null); toast('この招待リンクの枠が見つかりません（主催に確認してください）'); }
       else if(st===409){ setJoinClaim(room, null); toast('この端末はすでに別の枠で参加しています'); }
       else if(st===403){ setJoinClaim(room, null); }
+      /* 枠が取れなかった＝退出させられた部屋には戻れない（新しいリンクでだけ入り直せる） */
+      if((st===404 || st===409 || st===403) && kickedRooms.has(room)) leaveKicked(e);
       /* それ以外（圏外など）は次の受信でもう一度 */
     })
     .finally(()=>{ delete claimBusy[room]; });
