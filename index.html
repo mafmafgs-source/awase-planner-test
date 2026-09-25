@@ -908,16 +908,7 @@ function renderAwase(){
     }
   }
 
-  const bgImg = e.bgUrl || e.bg;
   v.innerHTML = `
-  <div class="cdbig ${bgImg?'hasbg':''}" ${bgImg?`style="background-image:url('${bgImg}')"`:''}>
-    <div class="lbl">${isFixed(e)?'撮影日まで':'日程'}</div>
-    ${isFixed(e)
-      ? `<div class="num" data-cd="${e.date}">${cdText(e.date)}</div>`
-      : `<div class="num" style="font-size:26px;padding:6px 0">${esc(dateDisp(e))}</div>`}
-    <div class="sub">${isFixed(e)?esc(dateDisp(e)):''}${e.place?`${isFixed(e)?' ／ ':''}${esc(e.place)}`:''}</div>
-    <div class="ttl">${esc(e.title)||'（併せ名未定）'}</div>
-  </div>
   <div class="doc">
     <div class="rotitle">${esc(e.title)||'（併せ名未定）'}</div>
     ${e.intro?`<div class="rointro">${line(e.intro)}</div>`:''}
