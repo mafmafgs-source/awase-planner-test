@@ -138,7 +138,17 @@ textarea{resize:vertical;}
   background:var(--card); border:1px solid var(--line); border-radius:var(--r);
   margin-bottom:12px; cursor:pointer; overflow:hidden;
 }
-.evcard .inner{padding:14px 16px;}
+.evcard{display:flex;}
+.evcard .inner{padding:14px 16px; flex:1; min-width:0;}
+/* 左の帯＝この併せでの自分の立場（縦書き） */
+.evcard .roleband{flex:0 0 26px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10.5px; font-weight:800; letter-spacing:.12em;}
+.evcard .roleband span{writing-mode:vertical-rl; text-orientation:upright; line-height:1; white-space:nowrap;}
+.evcard .roleband.r-host{background:#1a1a1a;}
+.evcard .roleband.r-sub{background:#555;}
+.evcard .roleband.r-layer{background:#e11d48;}
+.evcard .roleband.r-camera{background:#2563eb;}
+.evcard .roleband.r-assist{background:#059669;}
+.evcard.hasbg .roleband{opacity:.92;}
 .evcard .ttl{font-weight:700; font-size:16px;}
 .evcard .meta{font-size:12.5px; color:var(--sub); margin-top:3px;}
 .evcard .cdown{
@@ -680,7 +690,9 @@ function showList(){
       ${saved.length? saved.map(e=>{
         const bg = e.bgUrl || e.bg;
         const col = e.color ? themeOf(e.color).c[0] : '';
-        return `<div class="evcard ${bg?'hasbg':''}" onclick="closeModal();openEvent('${e.id}')" style="${bg?`background-image:url('${bg}');`:''}${e.id===cur?'border-color:var(--tx);':''}${col?`border-left:6px solid ${col};`:''}">
+        const role = myRole(e);
+        return `<div class="evcard ${bg?'hasbg':''}" onclick="closeModal();openEvent('${e.id}')" style="${bg?`background-image:url('${bg}');`:''}${e.id===cur?'border-color:var(--tx);':''}${col?`border-right:6px solid ${col};`:''}">
+          <div class="roleband r-${role.k}"><span>${role.t}</span></div>
           <div class="inner">
             <div class="ttl">${esc(e.title)||'（無題の併せ）'}${e.id===cur?'<span style="font-size:11px;color:var(--sub);font-weight:400">　表示中</span>':''}</div>
             <div class="meta">${esc(e.content)||''}${e.content?' ｜ ':''}${esc(dateDisp(e))}</div>
@@ -715,6 +727,14 @@ function showList(){
   </div>`;
 }
 
+/* この併せでの自分の立場（保存された併せの一覧の左の帯） */
+function myRole(e){
+  if(isOwner(e)) return {k:'host', t:'主催'};
+  if(isSub(e)) return {k:'sub', t:'副主催'};
+  if((e.members||[]).some(isMine)) return {k:'layer', t:'レイヤー'};
+  if((e.cameras||[]).some(isMine)) return {k:'camera', t:'カメラ'};
+  return {k:'assist', t:'アシスタント'};
+}
 /* ---- router ---- */
 function openEvent(id, tab='info'){
   cur = id; curTab = tab;
