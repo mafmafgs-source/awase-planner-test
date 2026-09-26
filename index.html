@@ -242,6 +242,10 @@ textarea{resize:vertical;}
 .sqrow .bd{flex:1; min-width:0;}
 .sqrow:last-child{border-bottom:none;}
 .sqrow .nt{font-size:11.5px; color:var(--sub); margin-top:1px;}
+.sqmore[hidden]{display:none;}
+.sqmore .sqrow:first-child{border-top:1px dashed var(--line);}
+.sqmorebtn{display:block; width:100%; margin:6px 0 2px; padding:8px; font-family:inherit; font-size:12.5px; font-weight:700; color:var(--tx); background:var(--card); border:1px solid var(--line); border-radius:8px; cursor:pointer;}
+.sqmorebtn:active{background:var(--acbg);}
 .prnote{font-size:10.5px; color:var(--sub); margin-top:12px; line-height:1.6;}
 /* 撮影データの受け渡し */
 .waitrow{display:flex; align-items:center; gap:8px; margin-top:8px;}
@@ -2064,10 +2068,17 @@ function affHTML(){
       <a href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">Amazon</a>
     </div>
   </div>`;
+  /* 各枠 10 位まで。1〜5 位を表示し、6 位以下は「もっと見る」で開く（開いた枠は描き直しても開いたまま・9/26） */
+  const catBlock = c=>{
+    const head = c.items.slice(0, 5), rest = c.items.slice(5), open = !!rankOpen[c.title];
+    return `<div class="sqcat">${esc(c.title)}</div>
+      ${head.map((it,i)=>itemRow(it, i+1)).join('')}
+      ${rest.length ? `<div class="sqmore" ${open?'':'hidden'}>${rest.map((it,i)=>itemRow(it, i+6)).join('')}</div>
+      <button class="sqmorebtn" data-t="${esc(c.title)}" onclick="toggleRankMore(this.dataset.t)">${open ? '閉じる' : `もっと見る（6〜${c.items.length}位）`}</button>` : ''}`;
+  };
   return `<div class="card">
     <h3>差し入れ売れ筋ランキング <span class="pr">PR</span> <span class="cnt">${rankingData? `${esc(rankingData.updated)}更新・毎日自動更新`:''}</span></h3>
-    ${cats.map(c=>`<div class="sqcat">${esc(c.title)}</div>
-      ${c.items.map((it,i)=>itemRow(it, i+1)).join('')}`).join('')}
+    ${cats.map(catBlock).join('')}
   </div>
 
   <div class="card">
@@ -2090,6 +2101,9 @@ function affHTML(){
     <div class="prnote">PR：Amazon のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
   </div>`;
 }
+/* 売れ筋ランキングの 6 位以下を開いているか（枠の見出しごと・この画面を開いている間だけ） */
+const rankOpen = {};
+function toggleRankMore(title){ rankOpen[title] = !rankOpen[title]; affRefresh(); }
 function addNameToList(name){
   name = String(name||'').slice(0,30);
   if(!name) return;
