@@ -711,6 +711,7 @@ function showList(){
           </div>
         </div>`;
       }).join('') : '<div class="note">まだ保存された併せはありません</div>'}
+      ${saved.length? '<div class="note" style="margin:8px 0 0">最後の更新から 1 年たった併せは、サーバーのデータ（構図・コメント・画像など）が自動で消えます。</div>' : ''}
       </div>
       <div class="foot">
       <button class="btn wide" onclick="closeModal();newEvent()">＋ 新しい併せを作成</button>
@@ -3273,6 +3274,7 @@ function showMyPage(){
       <div class="note" style="margin:0 0 8px">併せの一覧・主催の権限・マイページなどは自動でバックアップされています（${esc(bkLastText())}）。機種変更やデータが消えたときは、復元コードで元に戻せます。</div>
       <button class="btn sec wide" onclick="saveMyPage(true);closeModal();showBkCode(false)">復元コードを表示・PC・タブレットでも使う</button>
       <button class="btn sec wide" onclick="saveMyPage(true);closeModal();bkRestorePrompt()">コードで引き継ぐ</button>` : ''}
+      <div class="note" style="margin:14px 0 8px">併せのデータは、最後の更新から 1 年たつとサーバーから自動で消えます（構図・コメント・画像など）。</div>
       <button class="btn sec wide" onclick="closeModal()">閉じる</button>
     </div>
   </div>`;
