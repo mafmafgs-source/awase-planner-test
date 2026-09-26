@@ -3082,6 +3082,20 @@ function homeLink(){
   closeModal();
   vLinkWithCode(c);
 }
+/* 使い始めて 90 秒たったら 1 回だけ「復元コードを保存しておきましょう」を小さな帯で案内する
+   （中身のある併せがあるとき。主催の初回招待の案内と同じ印 awaseBkNoticed を使うので、どちらか 1 回） */
+function bkSaveHint(){
+  if(bkNoticed() || !bkAvailable() || !state.events.some(hasContent)) return;
+  if(document.getElementById('bkHint') || document.querySelector('#modalHost .modal')){ setTimeout(bkSaveHint, 20000); return; }
+  bkMarkNoticed();
+  const el = document.createElement('div');
+  el.id = 'bkHint';
+  el.className = 'bkhint';
+  el.innerHTML = `<span>📦 データが消えたときのために、<b>復元コード</b>をスクショかコピーで保存しておきましょう（マイページからいつでも見られます）</span>
+    <button class="go" onclick="document.getElementById('bkHint').remove();showBkCode(true)">表示</button>
+    <button class="x" aria-label="閉じる" onclick="document.getElementById('bkHint').remove()">×</button>`;
+  document.body.appendChild(el);
+}
 /* iPhone の Safari で、中身のある併せがあれば 1 回だけ「ホーム画面に追加」を小さく案内する */
 function a2hsHint(){
   if(!isIOS() || isStandalone() || lsGet('awaseA2hsNoticed') || !state.events.some(hasContent)) return;
@@ -4084,6 +4098,7 @@ function importJSON(){
   setTimeout(askPersist, 2000);
   if(!linkM && !joining) setTimeout(standaloneWelcome, 1200);
   setTimeout(a2hsHint, 20000);
+  setTimeout(bkSaveHint, 90000);
   /* 画面に戻ったとき、繋がっていない併せ（圏外で失敗した等）を繋ぎ直す */
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && syncReady()) state.events.forEach(e=>connectEvent(e)); });
 })();
