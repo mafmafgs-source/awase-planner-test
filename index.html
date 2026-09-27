@@ -2077,29 +2077,29 @@ function affHTML(){
       ${rest.length ? `<div class="sqmore" ${open?'':'hidden'}>${rest.map((it,i)=>itemRow(it, i+6)).join('')}</div>
       <button class="sqmorebtn" data-t="${esc(c.title)}" onclick="toggleRankMore(this.dataset.t)">${open ? '閉じる' : `もっと見る（6〜${c.items.length}位）`}</button>` : ''}`;
   };
+  /* みんなが探している差し入れ（3 人以上が探した商品）は、ランキングの先頭の枠として出す */
+  const commCat = comm && comm.items.length
+    ? [{title:'みんなが探している差し入れ', items:comm.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}]
+    : [];
+  /* 「差し入れを探す」はランキングの上（9/27 ユーザー指定・説明は一言だけ） */
   return `<div class="card">
-    <h3>差し入れ売れ筋ランキング <span class="pr">PR</span> <span class="cnt">${rankingData? `${esc(rankingData.updated)}更新・毎日自動更新`:''}</span></h3>
-    ${cats.map(catBlock).join('')}
-  </div>
-
-  <div class="card">
-    <h3>差し入れを探す</h3>
-    <div class="note" style="margin:0 0 8px">商品名を入れて「探す」を押すと Amazon の検索結果が開きます <span class="pr">PR</span>。みんなの検索が「みんなが探している差し入れ」ランキングに反映されて、次に差し入れを選ぶ人の参考になります。</div>
+    <h3>差し入れを探す <span class="pr">PR</span></h3>
+    <div class="note" style="margin:0 0 8px">検索した商品は、差し入れランキングに反映されます。</div>
     <div class="row">
       <input type="text" id="sqInput" maxlength="30" value="${esc(sqQuery)}" placeholder="例：めぐりズム、ミンティア" onkeydown="if(event.key==='Enter')sqSearch()">
       <button class="btn sec sm fix" onclick="sqSearch()">探す</button>
     </div>
     ${sqBlocked? `<div class="sqres" style="color:var(--sub)">${esc(sqBlocked)}</div>`:''}
-    ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を Amazon で開きました（${sqLinks(sqQuery)}）<span class="pr">PR</span><br>
+    ${sqQuery? `<div class="sqres">「<b>${esc(sqQuery)}</b>」を Amazon で開きました（${sqLinks(sqQuery)}）<br>
       <button class="sqadd" data-n="${esc(sqQuery)}" onclick="addNameToList(this.dataset.n)">忘れ物リストに入れる</button></div>`:''}
+    ${!commCat.length && rank.length
+      ? `<div class="sqchips" style="margin-top:10px">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
+      : ''}
+  </div>
 
-    <div class="secttl" style="margin-top:16px">みんなが探している差し入れ${comm && comm.items.length? ' <span class="pr">PR</span>':''}</div>
-    ${comm && comm.items.length
-      ? comm.items.map((it,ci)=>itemRow({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}, ci+1)).join('')
-      : rank.length
-      ? `<div class="sqchips">${rank.map((it,i)=>`<button class="sqchip" data-t="${esc(it.t)}" onclick="sqSearch(this.dataset.t,false)"><span class="rk">${i+1}</span>${esc(it.t)}</button>`).join('')}</div>`
-      : `<div class="note" style="margin:4px 0 0">ランキングはこれから育っていきます。あなたの検索が最初の一票になります（3人以上が探した商品から並びます）。</div>`}
-    <div class="prnote">PR：Amazon のリンクから購入すると、運営者に紹介料が入ることがあります（Amazonアソシエイト）。検索した言葉は、個人と結びつかない形でランキングの集計に使います。</div>
+  <div class="card">
+    <h3>差し入れ売れ筋ランキング <span class="pr">PR</span> <span class="cnt">${rankingData? `${esc(rankingData.updated)}更新・毎日自動更新`:''}</span></h3>
+    ${commCat.concat(cats).map(catBlock).join('')}
   </div>`;
 }
 /* 売れ筋ランキングの 6 位以下を開いているか（枠の見出しごと・この画面を開いている間だけ） */
