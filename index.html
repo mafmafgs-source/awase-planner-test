@@ -1952,8 +1952,10 @@ function loadRanking(){
     .catch(()=>{});
 }
 /* アフィリエイトの識別子（差し入れランキング sashiire-ranking と同じ）。
-   Amazon は専用トラッキングID。楽天は 9/24 にやめた（もしも経由も本家リンクも iPhone の Chrome で開けなかったため）。関数は残してあるが使っていない */
-const AMAZON_TAG = 'sashiire01-22';
+   Amazon のトラッキングID は Lighting Recipe と共通（9/29〜）。楽天は 9/24 にやめた（もしも経由も本家リンクも iPhone の Chrome で開けなかったため）。関数は残してあるが使っていない */
+const AMAZON_TAG = 'hiroyukinak01-22';   // 9/29: sashiire01-22 はレポートにクリックが出ないため、実績のある ID に統一（ユーザー決定）
+/* ranking.json や当日のキャッシュに古い ID が残っていても、表示するときに今の ID へ付け替える */
+function amzTag(u){ return String(u||'').replace(/([?&]tag=)[^&#]*/, '$1' + AMAZON_TAG); }
 /* 楽天は本家アフィリエイト（すべて https・転送 3 回）。もしも経由は途中に http:// の転送があり iPhone の Chrome で止まるため 9/24 にやめた */
 const RAKUTEN_AFF_ID = '569e8585.c4959bff.569e8586.775f3b01';
 function amazonSearchUrl(q){ return 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(q) + '&tag=' + AMAZON_TAG; }
@@ -2054,7 +2056,7 @@ function affHTML(){
   const comm = commRaw && {items: commRaw.items.filter(it=>!ngHit(it.label) && !ngHit(it.name||''))};
   /* 売れ筋（毎朝自動更新の ranking.json。取れないときは内蔵リスト） */
   const cats = rankingData
-    ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}))
+    ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:amzTag(it.amazonUrl), rakuten:it.rakutenUrl}))}))
     : [['sweets','お菓子の定番'],['goods','喜ばれる実用系']].map(([k,t])=>({title:t, items:AFF_ITEMS.filter(x=>x.cat===k).map(it=>({name:it.name, note:it.note, amazon:amazonSearchUrl(it.q), rakuten:rakutenSearchUrl(it.q)}))}));
   /* 1行＝順位・サムネイル（押すと Amazon）・名前・右にショップのボタン。PR 表記は見出しに1つだけ */
   const itemRow = (it, rk)=>`<div class="sqrow">
@@ -2079,7 +2081,7 @@ function affHTML(){
   };
   /* みんなが探している差し入れ（3 人以上が探した商品）は、ランキングの先頭の枠として出す */
   const commCat = comm && comm.items.length
-    ? [{title:'みんなが探している差し入れ', items:comm.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:it.amazonUrl, rakuten:it.rakutenUrl}))}]
+    ? [{title:'みんなが探している差し入れ', items:comm.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:amzTag(it.amazonUrl), rakuten:it.rakutenUrl}))}]
     : [];
   /* 「差し入れを探す」はランキングの上（9/27 ユーザー指定・説明は一言だけ） */
   return `<div class="card">
