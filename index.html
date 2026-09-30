@@ -242,6 +242,11 @@ textarea{resize:vertical;}
 .sqrow .bd{flex:1; min-width:0;}
 .sqrow:last-child{border-bottom:none;}
 .sqrow .nt{font-size:11.5px; color:var(--sub); margin-top:1px;}
+.sqrow .mv{display:inline-block; font-size:10.5px; font-weight:700; border-radius:99px; padding:0 6px; margin-left:6px; vertical-align:1px; background:var(--acbg); color:var(--sub);}
+.sqrow .mv.up{color:#1a7f37; background:#e9f5ec;} .sqrow .mv.dn{color:#9a3412; background:#fbeee6;} .sqrow .mv.new{color:var(--card); background:var(--tx);}
+.avoid{margin-top:12px; padding:10px 12px; background:var(--acbg); border-radius:8px;}
+.avoid b{font-size:12px;} .avoid ul{list-style:none; margin:4px 0 0; padding:0;}
+.avoid li{font-size:12px; padding-left:1.2em; text-indent:-1.2em; line-height:1.6;} .avoid li::before{content:"✕ "; color:var(--sub);}
 .sqmore[hidden]{display:none;}
 .sqmore .sqrow:first-child{border-top:1px dashed var(--line);}
 .sqmorebtn{display:block; width:100%; margin:6px 0 2px; padding:8px; font-family:inherit; font-size:12.5px; font-weight:700; color:var(--tx); background:var(--card); border:1px solid var(--line); border-radius:8px; cursor:pointer;}
@@ -2046,6 +2051,10 @@ async function sqSearch(term, record){
 function sqLinks(q){
   return `<a class="sqlink" href="${esc(amazonSearchUrl(q))}" target="_blank" rel="sponsored noopener">もう一度開く</a>`;
 }
+/* ranking.json の 1 商品 → 表示用。商品名が主役、枠の名前（種類）は 2 行目。mv＝前日との比べ（new/up/down/same） */
+function rankItem(it){
+  return {name: it.name || it.label, kind: it.name ? it.label : '', note: it.note, price: it.price, image: it.image, amazon: amzTag(it.amazonUrl), rakuten: it.rakutenUrl, mv: it.mv, mvN: it.mvN};
+}
 function affHTML(){
   loadSqRank();
   ngLoad().catch(()=>{});
@@ -2056,15 +2065,17 @@ function affHTML(){
   const comm = commRaw && {items: commRaw.items.filter(it=>!ngHit(it.label) && !ngHit(it.name||''))};
   /* 売れ筋（毎朝自動更新の ranking.json。取れないときは内蔵リスト） */
   const cats = rankingData
-    ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:amzTag(it.amazonUrl), rakuten:it.rakutenUrl}))}))
+    ? rankingData.categories.filter(c=>!c.community).map(c=>({title:c.title, items:c.items.map(rankItem)}))
     : [['sweets','お菓子の定番'],['goods','喜ばれる実用系']].map(([k,t])=>({title:t, items:AFF_ITEMS.filter(x=>x.cat===k).map(it=>({name:it.name, note:it.note, amazon:amazonSearchUrl(it.q), rakuten:rakutenSearchUrl(it.q)}))}));
-  /* 1行＝順位・サムネイル（押すと Amazon）・名前・右にショップのボタン。PR 表記は見出しに1つだけ */
+  /* 1行＝順位・サムネイル（押すと Amazon）・商品名（前日との比べの印つき）・2 行目に種類・価格の目安・一言・右に Amazon。PR 表記は見出しに1つだけ（9/30） */
+  const mvBadge = it=>it.mv==='up' ? `<span class="mv up">↑${it.mvN||''}</span>` : it.mv==='down' ? `<span class="mv dn">↓${it.mvN||''}</span>` : it.mv==='new' ? `<span class="mv new">NEW</span>` : it.mv==='same' ? `<span class="mv">→</span>` : '';
+  const subLine = it=>[it.kind, it.price? '約'+Number(it.price).toLocaleString('ja-JP')+'円':'', it.note].filter(Boolean).map(esc).join('・');
   const itemRow = (it, rk)=>`<div class="sqrow">
     <span class="sqrk ${rk===1?'r1':''}">${rk}</span>
     ${it.image? `<a class="tbl" href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener"><img class="tb" src="${esc(it.image)}" alt="${esc(it.name)}" loading="lazy" onerror="this.style.visibility='hidden'"></a>` : ''}
     <div class="bd">
-      <a class="nm" href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">${esc(it.name)}</a>
-      ${it.note?`<div class="nt">${esc(it.note)}</div>`:''}
+      <a class="nm" href="${esc(it.amazon)}" target="_blank" rel="sponsored noopener">${esc(it.name)}${mvBadge(it)}</a>
+      ${subLine(it)? `<div class="nt">${subLine(it)}</div>`:''}
       <button class="sqadd" data-n="${esc(it.name)}" onclick="addNameToList(this.dataset.n)">＋ 忘れ物リストに入れる</button>
     </div>
     <div class="shopbtns">
@@ -2081,8 +2092,10 @@ function affHTML(){
   };
   /* みんなが探している差し入れ（3 人以上が探した商品）は、ランキングの先頭の枠として出す */
   const commCat = comm && comm.items.length
-    ? [{title:'みんなが探している差し入れ', items:comm.items.map(it=>({name:it.label, note:it.note, image:it.image, amazon:amzTag(it.amazonUrl), rakuten:it.rakutenUrl}))}]
+    ? [{title:'みんなが探している差し入れ', items:comm.items.map(rankItem)}]
     : [];
+  /* 避けたほうがいい差し入れ（ranking.json の avoid・sashiire-ranking の config.json が正本） */
+  const avoid = rankingData && Array.isArray(rankingData.avoid) ? rankingData.avoid.filter(x=>typeof x==='string' && x) : [];
   /* 「差し入れを探す」はランキングの上（9/27 ユーザー指定・説明は一言だけ） */
   return `<div class="card">
     <h3>差し入れを探す <span class="pr">PR</span></h3>
@@ -2101,7 +2114,9 @@ function affHTML(){
 
   <div class="card">
     <h3>差し入れ売れ筋ランキング <span class="pr">PR</span> <span class="cnt">${rankingData? `${esc(rankingData.updated)}更新・毎日自動更新`:''}</span></h3>
+    ${rankingData? `<div class="note" style="margin:0 0 2px">楽天市場の売れ筋順。印は前日との比べ（↑上がった／NEW 初登場）</div>`:''}
     ${commCat.concat(cats).map(catBlock).join('')}
+    ${avoid.length? `<div class="avoid"><b>避けたほうがいい差し入れ</b><ul>${avoid.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}
   </div>`;
 }
 /* 売れ筋ランキングの 6 位以下を開いているか（枠の見出しごと・この画面を開いている間だけ） */
