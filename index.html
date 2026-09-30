@@ -966,17 +966,17 @@ const PRESETS = {
     'スタジオ未定（決まり次第お知らせします）',
     '詳細は参加者の方にDMでお伝えします'
   ]},
-  costume:{mode:'set', items:[
+  costume:{mode:'line', items:[
     '通常衣装',
     '制服',
     '自由（キャラに合わせてご用意ください）'
   ]},
-  feeLayer:{mode:'set', items:[
+  feeLayer:{mode:'line', items:[
     'スタジオ代÷人数',
     'スタジオ代÷人数（目安3,000円前後）',
     'スタジオ代3,000円以下を予定'
   ]},
-  feeCamera:{mode:'set', items:[
+  feeCamera:{mode:'line', items:[
     'スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください',
     'カメラマン・アシスタントの方からは頂戴いたしません',
     'スタジオ代÷人数（カメラマン様含む）'
@@ -1129,15 +1129,15 @@ function renderInfo(){
     <input type="text" value="${esc(e.station)}" placeholder="最寄駅（例：地下鉄◯◯駅 徒歩5分）" oninput="uf('station',this.value)" style="margin-top:4px">`:''}
 
     <div class="sech">【衣装】</div>
-    <input type="text" value="${esc(e.costume)}" placeholder="例：通常衣装" oninput="uf('costume',this.value)">
+    ${linesHTML(e,'costume','例：通常衣装')}
     ${presetHTML(e,'costume')}
 
     ${sechHTML(e,'fee','【参加費】')}
     ${S('fee')?`<div class="starh">レイヤー</div>
-    <input type="text" value="${esc(e.feeLayer)}" placeholder="例：スタジオ代3000円以下を予定（レイヤーで折半）" oninput="uf('feeLayer',this.value)">
+    ${linesHTML(e,'feeLayer','例：スタジオ代3000円以下を予定（レイヤーで折半）')}
     ${presetHTML(e,'feeLayer')}
     <div class="starh">カメラマン・アシスタント</div>
-    <input type="text" value="${esc(e.feeCamera)}" placeholder="例：スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください" oninput="uf('feeCamera',this.value)">
+    ${linesHTML(e,'feeCamera','例：スタジオ代はレイヤーで折半、交通費・食事代のみご負担ください')}
     ${presetHTML(e,'feeCamera')}`:''}
 
     <div class="sech">【募集メンバー】</div>
@@ -1199,6 +1199,19 @@ function renderInfo(){
 }
 
 function uf(k,val){ ev()[k]=val; save(); }
+/* 行を足せる入力（衣装・参加費・9/30）。保存は改行区切りの文字列のまま（募集画像・要項の表示は改行対応済み） */
+function linesOf(v){ const ls = String(v||'').split('\n'); return ls.length ? ls : ['']; }
+function linesHTML(e,k,ph){
+  const ls = linesOf(e[k]);
+  return `<div class="lines" id="lines_${k}">${ls.map((l,i)=>`<div class="ttrow">
+    <input type="text" value="${esc(l)}" placeholder="${i===0?esc(ph):'2行目以降（例：小道具は各自）'}" oninput="setLine('${k}',${i},this.value)">
+    ${ls.length>1?`<button class="del" onclick="delLine('${k}',${i})">✕</button>`:''}
+  </div>`).join('')}</div>
+  <button class="btn sec sm" onclick="addLine('${k}')">＋ 行を追加</button>`;
+}
+function setLine(k,i,val){ const ls = linesOf(ev()[k]); ls[i] = val; ev()[k] = ls.join('\n').replace(/\n+$/,''); save(); }
+function addLine(k){ const ls = linesOf(ev()[k]); ls.push(''); ev()[k] = ls.join('\n'); save(); renderTab(); }
+function delLine(k,i){ const ls = linesOf(ev()[k]); ls.splice(i,1); ev()[k] = ls.join('\n'); save(); renderTab(); }
 
 /* ---- @IDの自動抽出 ----
    XのプロフィールURLや「名前 @id」形式のテキストを貼るだけで@ID（と名前）を自動入力 */
@@ -1348,12 +1361,21 @@ function addAs(){ addPerson('assistants'); }
 
 function ttRow(t,i){
   return `<div class="ttrow">
-    <input type="time" class="t" value="${esc(t.time)}" onchange="ev().timetable[${i}].time=this.value;save()">
+    <input type="time" class="t" value="${esc(t.time)}" onchange="setTTTime(${i},this.value)">
     <input type="text" value="${esc(t.label)}" placeholder="例：スタジオ入り・メイク" oninput="ev().timetable[${i}].label=this.value;save()">
     <button class="del" onclick="ev().timetable.splice(${i},1);save();renderTab()">✕</button>
   </div>`;
 }
 function addTT(){ ev().timetable.push({time:'',label:''}); save(); renderTab(); }
+/* 時刻を入れたら時間順に並べ替える（時刻の無い行は末尾に・入力中の並びは保つ）（9/30 ユーザー要望） */
+function setTTTime(i,val){
+  const e = ev();
+  e.timetable[i].time = val;
+  const withT = e.timetable.filter(t=>t.time), noT = e.timetable.filter(t=>!t.time);
+  withT.sort((a,b)=>a.time.localeCompare(b.time));
+  e.timetable = withT.concat(noT);
+  save(); renderTab();
+}
 
 /* ---- URLを開く ---- */
 function openPlaceUrl(){
@@ -3031,7 +3053,7 @@ function bkMarkNoticed(){ try{ localStorage.setItem('awaseBkNoticed', '1'); }cat
    ・iPhone の Safari は 7 日間開かないとサイトのデータを消すことがある → ホーム画面に追加して開けば消えない。
      ただし iPhone ではホーム画面版と Safari の保存場所が別なので、復元コードで引き継いでもらう
    ・Android の Chrome はホーム画面版も同じ保存場所（引き継ぎ不要） */
-function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+function isStandalone(){ return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true || (typeof IS_NATIVE !== 'undefined' && IS_NATIVE); }   // アプリの中も「ホーム画面版」扱い（追加の案内を出さない）
 function isIOS(){ const ua = navigator.userAgent || ''; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1); }
 let persistAsked = false;
 function askPersist(){
@@ -3365,7 +3387,9 @@ setInterval(()=>{
              null にすると同期せず、端末内だけで動く。
    WEB_BASE: 招待リンクの行き先＝WEB版。アプリ・フル版から招待しても、相手はブラウザで開くだけで参加できる。
 */
-const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // 手元の検証サーバーで開いたときだけ
+/* アプリ（Capacitor）の中では location.hostname が localhost になるので、本番の API を向ける（9/30） */
+const IS_NATIVE = !!(window.Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform());
+const LOCAL_TEST = !IS_NATIVE && /^(localhost|127\.0\.0\.1)$/.test(location.hostname); // 手元の検証サーバーで開いたときだけ
 const SYNC_API = LOCAL_TEST ? location.origin + '/awase/api/' : 'https://jyounetsu.site/awase/api/';
 const WEB_BASE = LOCAL_TEST ? location.origin + '/awase/' : 'https://jyounetsu.site/awase/';
 /* ▲▲▲ ここまで ▲▲▲ */
