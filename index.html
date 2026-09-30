@@ -1121,7 +1121,7 @@ function renderInfo(){
       <input type="datetime-local" value="${esc(e.date)}" onchange="uf('date',this.value)">
       <div class="row" style="margin-top:4px">
         <span class="fix" style="font-size:12px;color:var(--sub)">終了予定</span>
-        <input type="text" inputmode="numeric" placeholder="例：17:00" value="${esc(e.endTime)}" onchange="uf('endTime',normTime(this.value))">
+        <input type="time" value="${esc(e.endTime)}" onchange="uf('endTime',this.value)">
       </div>`
     : `<input type="text" value="${esc(e.dateText)}" placeholder="例：12月ごろ〜 土日で調整中" oninput="uf('dateText',this.value)">`}`}
 
@@ -1368,7 +1368,7 @@ function addAs(){ addPerson('assistants'); }
 
 function ttRow(t,i){
   return `<div class="ttrow">
-    <input type="text" class="t" inputmode="numeric" placeholder="10:00" value="${esc(t.time)}" onchange="setTTTime(${i},this.value)">
+    <input type="time" class="t" value="${esc(t.time)}" onchange="ev().timetable[${i}].time=this.value;save()" onblur="ttSort()">
     <input type="text" value="${esc(t.label)}" placeholder="例：スタジオ入り・メイク" oninput="ev().timetable[${i}].label=this.value;save()">
     <button class="del" onclick="ev().timetable.splice(${i},1);save();renderTab()">✕</button>
   </div>`;
@@ -1385,12 +1385,14 @@ function normTime(v){
   if(h>29 || mi>59) return t;
   return String(h).padStart(2,'0') + ':' + String(mi).padStart(2,'0');
 }
-function setTTTime(i,val){
+/* ピッカーを閉じたら時間順に並べ替える。選んでいる最中に描き直すとピッカーが閉じてしまうので、onchange では保存だけ（9/30） */
+function ttSort(){
   const e = ev();
-  e.timetable[i].time = normTime(val);
   const withT = e.timetable.filter(t=>t.time), noT = e.timetable.filter(t=>!t.time);
   withT.sort((a,b)=>a.time.localeCompare(b.time));
-  e.timetable = withT.concat(noT);
+  const sorted = withT.concat(noT);
+  if(sorted.every((t,i)=>t===e.timetable[i])) return;   // 並びが変わらなければ描き直さない
+  e.timetable = sorted;
   save(); renderTab();
 }
 
