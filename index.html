@@ -803,10 +803,11 @@ function updateAppBanner(){
   const url = appLink();
   let off = 0;
   try{ off = +localStorage.getItem('awaseAppBannerOff') || 0; }catch(err){}
-  const show = LITE && !!e && !liteHost(e) && !!url && (Date.now() - off > 14*86400000);
+  /* iPhone・iPad の WEB 版（ホーム画面版も含む）にだけ出す。アプリの中では出さない。× で閉じたら 2 週間出さない（10/8 ユーザー指定） */
+  const show = !!e && !!url && !IS_NATIVE && isIOS() && (Date.now() - off > 14*86400000);
   el.classList.toggle('hidden', !show);
-  if(show) el.innerHTML = `<span>📱 アプリ版もあります。よく使うならアプリのほうが快適です</span>
-    <a href="${esc(url)}" target="_blank" rel="noopener">アプリを見る</a>
+  if(show) el.innerHTML = `<span>📱 アプリ版もあります</span>
+    <a href="${esc(url)}" target="_blank" rel="noopener">App Store で見る</a>
     <button aria-label="閉じる" onclick="closeAppBanner()">×</button>`;
 }
 function closeAppBanner(){
