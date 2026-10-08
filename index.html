@@ -79,6 +79,7 @@ main{padding:16px;}
 .appbanner span{flex:1; line-height:1.5;}
 .appbanner a{color:var(--tx); font-weight:700; white-space:nowrap; text-decoration:none;
   border:1px solid var(--line); background:var(--card); border-radius:99px; padding:4px 10px;}
+.appbanner a.bk{display:inline; border:none; background:none; padding:0; border-radius:0; font-weight:400; color:inherit; text-decoration:underline; white-space:normal; cursor:pointer;}
 .rptlink{display:block;margin:10px auto 0;background:none;border:none;color:var(--sub);font-size:12px;text-decoration:underline;cursor:pointer;font-family:inherit;padding:4px}
 .rptlink.in{display:inline;margin:0 0 0 8px;padding:0;font-size:11px}
 .hidimg{display:flex;align-items:center;justify-content:center;background:var(--acbg);color:var(--sub);font-size:11px;text-align:center;padding:6px}
@@ -806,7 +807,7 @@ function updateAppBanner(){
   /* iPhone・iPad の WEB 版（ホーム画面版も含む）にだけ出す。アプリの中では出さない。× で閉じたら 2 週間出さない（10/8 ユーザー指定） */
   const show = !!e && !!url && !IS_NATIVE && isIOS() && (Date.now() - off > 14*86400000);
   el.classList.toggle('hidden', !show);
-  if(show) el.innerHTML = `<span>📱 アプリ版もあります</span>
+  if(show) el.innerHTML = `<span>📱 アプリ版もあります。データは<a class="bk" onclick="showBkCode(false)">復元コード</a>で引き継げます</span>
     <a href="${esc(url)}" target="_blank" rel="noopener">App Store で見る</a>
     <button aria-label="閉じる" onclick="closeAppBanner()">×</button>`;
 }
